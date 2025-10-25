@@ -182,7 +182,7 @@ def handle_wallets(message):
                 
                 # Add to response
                 response_lines.append(f"{emoji} Wallet {i}: {balance_sol:.4f} SOL")
-                response_lines.append(f"   {wallet_addr[:16]}...{wallet_addr[-8:]}")
+                response_lines.append(f"   {wallet_addr}")
                 response_lines.append(f"   Status: {status}\n")
                 
             except Exception as e:
