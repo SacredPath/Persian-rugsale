@@ -40,6 +40,12 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_TOKEN")
 if not TELEGRAM_TOKEN or TELEGRAM_TOKEN == "your_bot_token_here":
     raise ValueError("[ERROR] TELEGRAM_TOKEN not set! Get token from @BotFather and add to .env file or Replit Secrets")
 
+# Main Wallet (where profits are collected)
+MAIN_WALLET = os.getenv("MAIN_WALLET")  # Your Phantom wallet address for profit collection
+if not MAIN_WALLET:
+    print("[WARNING] MAIN_WALLET not set - 'Collect Profits' button will be disabled")
+    print("[INFO] Add MAIN_WALLET=YourPhantomAddress to .env or Replit Secrets")
+
 # Program IDs and Endpoints
 PUMP_FUN_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"  # Pump.fun
 JITO_ENDPOINT = "https://ny.mainnet.block-engine.jito.wtf/api/v1/bundles"  # For bundling
