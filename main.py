@@ -118,11 +118,20 @@ def handle_launch(message):
             bot.reply_to(message, success_text, reply_markup=markup)
             print(f"[DEBUG] Sent success message with 4 buttons to chat {message.chat.id}")
             
-            # Auto-start monitoring (essential, not optional)
+            # Auto-start monitoring in background thread (non-blocking)
             try:
-                asyncio.run(monitor.start(mint, message.chat.id))
+                import threading
+                def run_monitor():
+                    try:
+                        asyncio.run(monitor.start(mint, message.chat.id))
+                    except Exception as e:
+                        print(f"[ERROR] Monitor background task failed: {e}")
+                
+                monitor_thread = threading.Thread(target=run_monitor, daemon=True)
+                monitor_thread.start()
+                print(f"[INFO] Monitoring started in background for {mint[:8]}...")
             except Exception as monitor_error:
-                bot.reply_to(message, f"[WARNING] Monitor failed: {monitor_error}")
+                bot.reply_to(message, f"[WARNING] Monitor failed to start: {monitor_error}")
         else:
             bot.reply_to(message, f"[ERROR] Launch failed")
             
@@ -230,18 +239,18 @@ def handle_wallets(message):
                 if balance_sol >= 0.003:
                     status = "FUNDED"
                     funded_count += 1
-                    emoji = "[OK]"
+                    indicator = "[OK]"
                 elif balance_sol > 0:
                     status = "LOW"
                     unfunded_count += 1
-                    emoji = "[LOW]"
+                    indicator = "[WARNING]"
                 else:
                     status = "EMPTY"
                     unfunded_count += 1
-                    emoji = "[EMPTY]"
+                    indicator = "[EMPTY]"
                 
                 # Add to response
-                response_lines.append(f"{emoji} Wallet {i}: {balance_sol:.4f} SOL")
+                response_lines.append(f"{indicator} Wallet {i}: {balance_sol:.4f} SOL")
                 response_lines.append(f"   {wallet_addr}")
                 response_lines.append(f"   Status: {status}\n")
                 
@@ -258,7 +267,7 @@ def handle_wallets(message):
         
         if unfunded_count > 0:
             needed_sol = unfunded_count * 0.003
-            response_lines.append(f"\n[ACTION] FUNDING REQUIRED:")
+            response_lines.append(f"\n[WARNING] ACTION REQUIRED:")
             response_lines.append(f"  Fund {unfunded_count} wallets")
             response_lines.append(f"  Need: {needed_sol:.4f} SOL total")
             response_lines.append(f"  (0.003 SOL per wallet)")
@@ -429,11 +438,20 @@ def handle_callback(call):
                     bot.send_message(chat_id, success_text, reply_markup=markup)
                     print(f"[DEBUG] Sent success message with 4 buttons to chat {chat_id}")
                     
-                    # Auto-start monitoring
+                    # Auto-start monitoring in background thread (non-blocking)
                     try:
-                        asyncio.run(monitor.start(mint, chat_id))
+                        import threading
+                        def run_monitor():
+                            try:
+                                asyncio.run(monitor.start(mint, chat_id))
+                            except Exception as e:
+                                print(f"[ERROR] Monitor background task failed: {e}")
+                        
+                        monitor_thread = threading.Thread(target=run_monitor, daemon=True)
+                        monitor_thread.start()
+                        print(f"[INFO] Monitoring started in background for {mint[:8]}...")
                     except Exception as monitor_error:
-                        bot.send_message(chat_id, f"[WARNING] Monitor failed: {monitor_error}")
+                        bot.send_message(chat_id, f"[WARNING] Monitor failed to start: {monitor_error}")
                 else:
                     bot.send_message(chat_id, f"[ERROR] Launch failed")
                     
