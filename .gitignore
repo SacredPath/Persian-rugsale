@@ -35,6 +35,8 @@ wheels/
 htmlcov/
 .tox/
 .hypothesis/
+tests/
+conftest.py
 
 # IDEs
 .vscode/
