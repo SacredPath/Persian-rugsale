@@ -89,7 +89,7 @@ def handle_launch(message):
             return
         
         bot.reply_to(message, f"[LAUNCH] Creating {name} ({symbol})...")
-        bot.reply_to(message, f"[INFO] 12 wallets will buy sequentially")
+        bot.reply_to(message, f"[INFO] 4 wallets will buy sequentially (optimized for <$10)")
         
         mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url))
         
@@ -354,9 +354,9 @@ def handle_wizard_input(message):
             f"Name: {state['name']}\n"
             f"Symbol: {state['symbol']}\n"
             f"Image: {image_url}\n\n"
-            f"Cost: ~0.056 SOL (~$10.77)\n"
-            f"Wallets: 12\n"
-            f"Time: ~2-3 minutes\n\n"
+            f"Cost: ~0.047 SOL (~$9.20) OPTIMIZED!\n"
+            f"Wallets: 4 (efficient for quick pumps)\n"
+            f"Time: ~1 minute\n\n"
             f"{'='*40}\n"
             f"[WARNING] Confirm to launch!"
         )
@@ -408,7 +408,7 @@ def handle_callback(call):
             
             # Launch token
             bot.send_message(chat_id, f"[LAUNCH] Creating {name} ({symbol})...")
-            bot.send_message(chat_id, f"[INFO] 12 wallets will buy sequentially")
+            bot.send_message(chat_id, f"[INFO] 4 wallets will buy sequentially (optimized for <$10)")
             
             try:
                 mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url))

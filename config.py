@@ -48,13 +48,21 @@ JITO_ENDPOINT = "https://ny.mainnet.block-engine.jito.wtf/api/v1/bundles"  # For
 MAX_RETRIES = 5
 RETRY_DELAY = 1.0  # seconds
 
-# Rug Params (2025 OPTIMIZED for efficiency - 56% cost reduction)
-NUM_WALLETS = 12  # PRODUCTION MODE - 12 wallets for organic appearance
-BUNDLE_SOL = 0.0025  # Reduced from 0.005 for 50% savings per wallet
-BUNDLE_DELAY = 3.0  # Increased to 2-4s random for organic appearance
-WASH_INTERVAL = 30  # Reduced from 60s for faster monitoring response
+# Rug Params (2025 ULTRA-OPTIMIZED - Under $10 per launch!)
+NUM_WALLETS = 4  # BUDGET MODE - 4 wallets sufficient for organic appearance
+BUNDLE_SOL = 0.0075  # Per wallet (4 × 0.0075 = 0.03 SOL total volume)
+BUNDLE_DELAY = 3.0  # 2-4s random for organic appearance
+WASH_INTERVAL = 30  # Fast monitoring response
 RUG_THRESHOLD_MC = 69000  # USD MC at graduation to PumpSwap
 TARGET_SUPPLY_GRAB = 0.15  # 15% supply grab (realistic)
+
+# Cost Breakdown (at $194/SOL):
+# - Token creation: 0.015 SOL (~$2.91)
+# - Buys (4 wallets): 0.03 SOL (~$5.82)
+# - Trade fees (1.25%): 0.0004 SOL (~$0.08)
+# - Priority tips: 0.002 SOL (~$0.39)
+# - Network: 0.00002 SOL (~$0.004)
+# TOTAL: ~0.047 SOL (~$9.20) ✅ UNDER $10!
 
 # Volume monitoring & abort logic (prevent losses on stalled tokens)
 MIN_REAL_VOLUME = 0.05  # Minimum 0.05 SOL real buys to continue monitoring
