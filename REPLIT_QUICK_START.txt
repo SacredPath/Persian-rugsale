@@ -1,0 +1,170 @@
+╔════════════════════════════════════════════════════════════╗
+║         REPLIT DEPLOYMENT - QUICK START GUIDE             ║
+╚════════════════════════════════════════════════════════════╝
+
+⏱️ Time: 10-15 minutes
+💰 Cost: FREE (or $7/mo for Always-On)
+✅ Result: Bot running 24/7 in the cloud
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1: CREATE REPLIT ACCOUNT (2 mins)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Go to: https://replit.com
+2. Click "Sign up" (free)
+3. Verify email
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 2: CREATE NEW REPL (1 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Click "Create Repl"
+2. Select "Python"
+3. Name: "solana-rug-bot"
+4. Click "Create Repl"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 3: UPLOAD FILES (5 mins)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In Replit, upload these files/folders:
+
+REQUIRED:
+✅ modules/ (entire folder - 9 files)
+✅ wallets/ (entire folder - your wallet files)
+✅ requirements.txt
+✅ config.py
+✅ main.py
+✅ .replit
+
+OPTIONAL (but helpful):
+📄 README.md
+📄 REPLIT_DEPLOYMENT.md
+
+HOW TO UPLOAD:
+- Drag & drop folders/files into Replit Files panel
+- OR use "Upload file" button
+- OR import from GitHub URL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 4: CONFIGURE SECRETS (3 mins) ⚠️ CRITICAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click "Secrets" (🔒 icon) in left sidebar
+
+Add these 5 secrets:
+
+1. SOLANA_RPC
+   Value: https://mainnet.helius-rpc.com/?api-key=4d72947c-31b4-4821-8b7b-cef17cd1eba1
+
+2. HELIUS_API_KEY
+   Value: 4d72947c-31b4-4821-8b7b-cef17cd1eba1
+
+3. SHYFT_API_KEY
+   Value: V4KK_GYrAApRPmJA
+
+4. TELEGRAM_TOKEN
+   Value: 8247389997:AAHgmqHyP2dEuBdgfnaqsKLSG1bhKmStRHg
+
+5. PROBE_MODE
+   Value: false
+
+⚠️ NEVER put these in code - use Secrets only!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 5: INSTALL DEPENDENCIES (2 mins)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click "Shell" tab (bottom panel)
+
+Run:
+  pip install -r requirements.txt
+
+OR just click "Run" - Replit auto-installs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 6: TEST RUN (1 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Click "Run" button (▶️)
+2. Check console for:
+   [OK] Using MAINNET
+   Simple Rug Bot Starting...
+   
+3. Open Telegram
+4. Send: /start
+5. Bot should respond!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 7: KEEP RUNNING 24/7 (Optional)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPTION A: Replit Always-On ($7/month)
+  1. Click "Deploy" tab
+  2. Enable "Always On"
+  3. Done - bot runs 24/7
+
+OPTION B: UptimeRobot (FREE)
+  1. Go to: https://uptimerobot.com
+  2. Sign up (free)
+  3. Add monitor:
+     - Type: HTTP(s)
+     - URL: Your Repl URL (click Webview to get)
+     - Interval: 5 minutes
+  4. Done - UptimeRobot pings every 5 mins, keeps bot awake
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ DONE! YOUR BOT IS LIVE!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Test it:
+  Telegram: /start
+  Telegram: /launch TestToken TEST http://image.url
+
+Monitor:
+  Replit Console: Watch logs in real-time
+  Telegram: Get launch/rug notifications
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ "ModuleNotFoundError"
+  Fix: pip install -r requirements.txt
+
+❌ "Secrets not loading"
+  Fix: Check Secrets tab, verify all 5 keys set
+
+❌ Bot not responding
+  Fix: Check Telegram token in Secrets
+       Verify bot is running (green "Run" button)
+
+❌ Wallets not found
+  Fix: Re-upload wallets/ folder
+       Check files exist: ls wallets/
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 SUCCESS CRITERIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Console shows "Simple Rug Bot Starting..."
+✅ /start in Telegram gets response
+✅ No errors in console
+✅ Bot stays running
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 FULL GUIDE: See REPLIT_DEPLOYMENT.md for details
+
+🚀 STATUS: READY TO DEPLOY!
+
