@@ -1,122 +1,140 @@
-# 24/7 Bot Setup Guide
+# 24/7 Replit Keep-Alive Setup
 
-## Keep Your Bot Running 24/7 on Replit (FREE)
+## How It Works
 
-### Problem:
-Replit free tier puts your bot to sleep after inactivity
+Replit free tier stops your bot after **~1 hour of inactivity**. To prevent this:
 
-### Solution:
-Use UptimeRobot to ping your bot every 5 minutes
+1. Bot runs a **Flask web server** (port 8080)
+2. **UptimeRobot** pings your bot every 5 minutes
+3. Replit sees activity → **stays awake 24/7**
+
+**Cost: FREE** ✅
 
 ---
 
-## Step-by-Step Setup:
+## Step-by-Step Setup
 
-### 1. Push Updates to Replit
-```bash
-git add .
-git commit -m "Add 24/7 keep-alive support"
-git push origin main
-```
+### 1. Update Bot on Replit
 
-On Replit:
 ```bash
+# On Replit Shell:
 git pull origin main
 pip install flask
 python main.py
 ```
 
+You should see:
+```
+[KEEP-ALIVE] Web server started on port 8080
+[KEEP-ALIVE] Bot will stay alive 24/7 when pinged by UptimeRobot
+Simple Rug Bot Starting...
+```
+
 ### 2. Get Your Replit URL
-After running the bot, Replit will show a URL like:
+
+Your bot's URL is:
 ```
-https://your-repl-name.your-username.repl.co
+https://Persian-rugsale.watchdoggirl.repl.co
 ```
 
-**Copy this URL!**
+Test it:
+- Open that URL in browser
+- Should see: "Bot is alive! ✅"
 
-### 3. Set Up UptimeRobot (FREE)
+### 3. Sign Up for UptimeRobot
 
-1. Go to: https://uptimerobot.com/
-2. Sign up (free account)
-3. Click "Add New Monitor"
-4. Fill in:
-   - **Monitor Type:** HTTP(s)
-   - **Friendly Name:** My Rug Bot
-   - **URL:** `https://your-repl-name.your-username.repl.co`
-   - **Monitoring Interval:** 5 minutes
-5. Click "Create Monitor"
+1. Go to: **https://uptimerobot.com**
+2. Click "Sign Up" (FREE account)
+3. Verify email
 
-**Done!** UptimeRobot will ping your bot every 5 minutes to keep it alive.
+### 4. Add Monitor
+
+1. Click **"+ Add New Monitor"**
+2. **Monitor Type:** HTTP(s)
+3. **Friendly Name:** Persian Rug Bot
+4. **URL:** `https://Persian-rugsale.watchdoggirl.repl.co`
+5. **Monitoring Interval:** 5 minutes
+6. Click **"Create Monitor"**
+
+### 5. Verify It Works
+
+**Wait 5-10 minutes**, then:
+
+1. Check UptimeRobot dashboard:
+   - Status should be **"Up"** (green)
+   - Response time shown
+   
+2. Test Telegram bot:
+   - Send `/start`
+   - Should respond instantly
+
+3. Come back in 24 hours:
+   - Bot should still respond
+   - UptimeRobot shows 99%+ uptime
 
 ---
 
-## How It Works:
+## Troubleshooting
 
-```
-Replit Bot ← Ping every 5 min ← UptimeRobot
-     ↓
-Stays awake 24/7
-```
+### Bot Still Stops
 
-1. Bot starts web server on port 8080
-2. UptimeRobot pings it every 5 minutes
-3. Replit thinks bot is active, doesn't put it to sleep
-4. Bot runs 24/7 for FREE!
+**Problem:** Replit might still stop bot
+
+**Fix:**
+- Check UptimeRobot is pinging every 5 minutes
+- Verify URL is correct
+- Check Replit console for errors
+
+### "Bot is alive!" Page Not Loading
+
+**Problem:** Flask server not running
+
+**Fix:**
+```bash
+# On Replit:
+pip install flask
+python main.py
+```
+Look for `[KEEP-ALIVE] Web server started` message
+
+### UptimeRobot Shows "Down"
+
+**Possible Causes:**
+1. Bot crashed (check Replit console)
+2. Replit having issues (restart bot)
+3. Network glitch (wait 5 mins, usually resolves)
 
 ---
 
-## Verify It's Working:
+## What UptimeRobot Does
 
-1. Open your Replit URL in browser
-2. Should see: "Bot is alive!"
-3. Check UptimeRobot dashboard (should be green/up)
-4. Bot console should show: `[INFO] Keep-alive server started on port 8080`
+- **Pings your bot:** Every 5 minutes
+- **Monitors uptime:** Shows 99%+ if working
+- **Email alerts:** If bot goes down
+- **Statistics:** Response times, downtime history
+- **Free tier:** Up to 50 monitors
 
 ---
 
-## Alternative: Replit Always On (PAID)
+## Alternative: Replit Always On (Paid)
 
 If you want guaranteed uptime without UptimeRobot:
 
-1. Go to Replit settings
-2. Enable "Always On" ($20/month)
-3. Bot runs 24/7 automatically
+- **Replit Hacker Plan:** $7/month
+- **Always On** feature included
+- No need for keep-alive server
+- More resources, faster bot
 
-**Recommendation:** Use UptimeRobot (free) first, upgrade if needed.
-
----
-
-## Troubleshooting:
-
-### Bot still goes to sleep:
-- Check UptimeRobot is pinging correctly (green status)
-- Verify Replit URL is correct
-- Make sure Flask installed: `pip install flask`
-
-### "Port 8080 already in use":
-- Replit is restarting, wait 30 seconds
-- Or change port in `keep_alive.py` (line 13)
-
-### UptimeRobot shows "Down":
-- Bot might be crashed, check Replit console
-- Restart bot on Replit
-- Wait 1 minute for monitor to refresh
+For most users, **UptimeRobot (FREE) is enough!**
 
 ---
 
-## What You Get:
+## Summary
 
-✅ Bot runs 24/7 for FREE
-✅ Automatic restart if crashed
-✅ No manual intervention needed
-✅ Email alerts from UptimeRobot if bot goes down
+✅ **Install:** `pip install flask`
+✅ **Your URL:** `https://Persian-rugsale.watchdoggirl.repl.co`
+✅ **UptimeRobot:** Add monitor, ping every 5 mins
+✅ **Result:** Bot runs 24/7 for FREE!
 
----
-
-## Notes:
-
-- Free Replit accounts have limited CPU hours (use UptimeRobot efficiently)
-- If you hit limits, upgrade to Replit paid plan
-- UptimeRobot free tier: up to 50 monitors, 5-min intervals
-- Keep-alive server uses minimal resources
+Done! 🎯
 

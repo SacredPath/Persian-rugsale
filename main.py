@@ -654,13 +654,13 @@ def handle_status_check(chat_id):
 if __name__ == "__main__":
     print("Simple Rug Bot Starting...")
     
-    # Keep alive for 24/7 on Replit
+    # Start keep-alive web server for 24/7 uptime
     try:
         from keep_alive import keep_alive
         keep_alive()
-        print("[INFO] Keep-alive server started on port 8080")
-    except ImportError:
-        print("[INFO] Keep-alive not available (running locally)")
+    except Exception as e:
+        print(f"[WARNING] Keep-alive server failed to start: {e}")
+        print("[INFO] Bot will still run but may stop on Replit free tier")
     
     try:
         bot.polling(none_stop=True)
