@@ -78,20 +78,40 @@ def buy_token_simple(wallet, token_mint, sol_amount_lamports, rpc_url, slippage=
         
         # Step 3: Send transaction
         swap_tx = swap_data["swapTransaction"]
-        tx_bytes = base64.b64decode(swap_tx)
         
-        client = Client(rpc_url)
-        tx = VersionedTransaction.from_bytes(tx_bytes)
+        try:
+            tx_bytes = base64.b64decode(swap_tx)
+        except Exception as e:
+            print(f"[ERROR] Failed to decode transaction: {e}")
+            return None
+        
+        try:
+            client = Client(rpc_url)
+            tx = VersionedTransaction.from_bytes(tx_bytes)
+        except Exception as e:
+            print(f"[ERROR] Failed to deserialize transaction: {e}")
+            return None
         
         # Sign transaction
-        tx.sign([wallet])
+        try:
+            tx.sign([wallet])
+        except Exception as e:
+            print(f"[ERROR] Failed to sign transaction: {e}")
+            return None
         
-        # Send
-        result = client.send_raw_transaction(bytes(tx), opts={"skipPreflight": False})
-        sig = result.value
-        
-        print(f"[OK] Buy TX: {sig}")
-        return sig
+        # Send with error handling
+        try:
+            result = client.send_raw_transaction(bytes(tx), opts={"skipPreflight": False})
+            if result and result.value:
+                sig = result.value
+                print(f"[OK] Buy TX: {sig}")
+                return sig
+            else:
+                print(f"[ERROR] Transaction failed - no signature returned")
+                return None
+        except Exception as e:
+            print(f"[ERROR] Failed to send transaction: {e}")
+            return None
         
     except Exception as e:
         print(f"[ERROR] Buy failed: {e}")
@@ -156,17 +176,38 @@ def sell_token_simple(wallet, token_mint, token_amount, rpc_url, slippage=500):
         
         # Send transaction
         swap_tx = swap_data["swapTransaction"]
-        tx_bytes = base64.b64decode(swap_tx)
         
-        client = Client(rpc_url)
-        tx = VersionedTransaction.from_bytes(tx_bytes)
-        tx.sign([wallet])
+        try:
+            tx_bytes = base64.b64decode(swap_tx)
+        except Exception as e:
+            print(f"[ERROR] Failed to decode transaction: {e}")
+            return None
         
-        result = client.send_raw_transaction(bytes(tx))
-        sig = result.value
+        try:
+            client = Client(rpc_url)
+            tx = VersionedTransaction.from_bytes(tx_bytes)
+        except Exception as e:
+            print(f"[ERROR] Failed to deserialize transaction: {e}")
+            return None
         
-        print(f"[OK] Sell TX: {sig}")
-        return sig
+        try:
+            tx.sign([wallet])
+        except Exception as e:
+            print(f"[ERROR] Failed to sign transaction: {e}")
+            return None
+        
+        try:
+            result = client.send_raw_transaction(bytes(tx))
+            if result and result.value:
+                sig = result.value
+                print(f"[OK] Sell TX: {sig}")
+                return sig
+            else:
+                print(f"[ERROR] Transaction failed - no signature returned")
+                return None
+        except Exception as e:
+            print(f"[ERROR] Failed to send transaction: {e}")
+            return None
         
     except Exception as e:
         print(f"[ERROR] Sell failed: {e}")

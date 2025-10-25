@@ -278,6 +278,12 @@ def handle_wallets(message):
 def handle_wizard_input(message):
     """Handle wizard step inputs."""
     chat_id = message.chat.id
+    
+    # Check if message has text (user might send photo/file)
+    if not message.text:
+        bot.reply_to(message, "[ERROR] Please send text only. Try again:")
+        return
+    
     state = launch_wizard[chat_id]
     
     if state['step'] == 'name':

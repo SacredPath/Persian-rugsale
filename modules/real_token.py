@@ -69,11 +69,23 @@ def get_token_balance_simple(wallet_pubkey, token_mint, rpc_url):
     try:
         client = Client(rpc_url)
         
-        # Get token accounts
-        response = client.get_token_accounts_by_owner(
-            Pubkey.from_string(wallet_pubkey),
-            {"mint": Pubkey.from_string(token_mint)}
-        )
+        # Validate and convert pubkeys
+        try:
+            wallet_pk = Pubkey.from_string(wallet_pubkey)
+            mint_pk = Pubkey.from_string(token_mint)
+        except Exception as e:
+            print(f"[ERROR] Invalid pubkey: {e}")
+            return 0
+        
+        # Get token accounts with timeout handling
+        try:
+            response = client.get_token_accounts_by_owner(
+                wallet_pk,
+                {"mint": mint_pk}
+            )
+        except Exception as e:
+            print(f"[ERROR] RPC call failed: {e}")
+            return 0
         
         if response.value and len(response.value) > 0:
             # Parse balance from account data
@@ -88,20 +100,34 @@ def get_token_balance_simple(wallet_pubkey, token_mint, rpc_url):
                 # Decode account data
                 data = account.account.data
                 if isinstance(data, str):
-                    data_bytes = base64.b64decode(data)
+                    try:
+                        data_bytes = base64.b64decode(data)
+                    except Exception as e:
+                        print(f"[ERROR] Failed to decode account data: {e}")
+                        return 0
                 else:
-                    data_bytes = data
+                    # Handle bytes-like objects
+                    try:
+                        data_bytes = bytes(data)
+                    except Exception as e:
+                        print(f"[ERROR] Failed to convert account data to bytes: {e}")
+                        return 0
+                
+                # Validate data length before parsing
+                if not data_bytes or len(data_bytes) < 72:
+                    print(f"[WARNING] Account data too short: {len(data_bytes) if data_bytes else 0} bytes (need 72)")
+                    return 0
                 
                 # Extract amount (u64 little-endian at offset 64)
-                if len(data_bytes) >= 72:
+                try:
                     amount = struct.unpack('<Q', data_bytes[64:72])[0]
                     return amount
-                else:
-                    print(f"[WARNING]  Account data too short: {len(data_bytes)} bytes")
+                except struct.error as e:
+                    print(f"[ERROR] Failed to unpack balance data: {e}")
                     return 0
                     
             except Exception as e:
-                print(f"[WARNING]  Failed to parse balance: {e}")
+                print(f"[WARNING] Failed to parse balance: {e}")
                 return 0
         
         return 0
