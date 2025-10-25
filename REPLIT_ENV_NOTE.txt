@@ -1,0 +1,47 @@
+REPLIT AUTO-ADDED ENV VARIABLES
+================================
+
+Replit automatically adds some environment variables to your project:
+
+1. WALLET_ENCRYPTION_KEY
+   - Auto-added by Replit
+   - NOT used by this bot
+   - Safe to ignore or remove
+   - Purpose: Replit's internal wallet encryption feature
+   - Our bot uses its own wallet management (wallets/*.json)
+
+2. DATABASE_URL
+   - Might appear if you use Replit DB
+   - NOT used by this bot
+   - Safe to ignore
+
+3. REPLIT_* variables
+   - Various Replit system variables
+   - Safe to ignore
+   - Don't affect bot functionality
+
+============================================
+WHAT THE BOT ACTUALLY USES:
+============================================
+
+Required variables:
+- SOLANA_RPC or HELIUS_API_KEY or SHYFT_API_KEY
+- TELEGRAM_TOKEN
+- TELEGRAM_CHAT_ID (optional, for direct messages)
+
+That's it! All other variables are either:
+- Replit's internal use
+- Can be safely ignored
+- Not affecting bot functionality
+
+============================================
+IF REPLIT ADDS MORE VARIABLES:
+============================================
+
+1. Check if bot uses it (look in config.py)
+2. If not in config.py, it's safe to ignore
+3. Won't break the bot
+4. Can remove them if you want (they'll come back)
+
+TL;DR: WALLET_ENCRYPTION_KEY is harmless, ignore it!
+
