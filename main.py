@@ -35,10 +35,16 @@ rugger = RugExecutor(RPC_URL)
 # Store active token for quick actions
 active_token = {}
 
+# Store launch wizard state
+launch_wizard = {}
+
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     """Start command with buttons."""
     markup = types.InlineKeyboardMarkup()
+    markup.row(
+        types.InlineKeyboardButton("🚀 Launch Token", callback_data="launch_start")
+    )
     markup.row(
         types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
         types.InlineKeyboardButton("📊 Status", callback_data="status")
@@ -46,10 +52,10 @@ def handle_start(message):
     
     welcome_text = (
         "🤖 Rug Bot Ready!\n\n"
-        "📝 LAUNCH TOKEN:\n"
-        "/launch <name> <symbol> <image>\n\n"
-        "⚡ QUICK ACTIONS:\n"
-        "Use buttons below for instant access!"
+        "🚀 Click 'Launch Token' to start wizard\n"
+        "💰 Check wallets for funding status\n"
+        "📊 View bot status\n\n"
+        "⚡ All actions available via buttons!"
     )
     
     bot.reply_to(message, welcome_text, reply_markup=markup)
@@ -267,6 +273,74 @@ def handle_wallets(message):
         import traceback
         print(f"[ERROR] Wallet check trace: {traceback.format_exc()}")
 
+# Message handler for wizard steps
+@bot.message_handler(func=lambda message: message.chat.id in launch_wizard)
+def handle_wizard_input(message):
+    """Handle wizard step inputs."""
+    chat_id = message.chat.id
+    state = launch_wizard[chat_id]
+    
+    if state['step'] == 'name':
+        # Validate name
+        name = message.text.strip()
+        if len(name) > 32:
+            bot.reply_to(message, "❌ Name too long! Max 32 characters.\n\nTry again:")
+            return
+        if len(name) < 1:
+            bot.reply_to(message, "❌ Name cannot be empty!\n\nTry again:")
+            return
+        
+        state['name'] = name
+        state['step'] = 'symbol'
+        
+        bot.reply_to(message, f"✅ Name: {name}\n\n💱 Now enter token SYMBOL (e.g., DOGE, MOON):")
+    
+    elif state['step'] == 'symbol':
+        # Validate symbol
+        symbol = message.text.strip().upper()
+        if len(symbol) > 10:
+            bot.reply_to(message, "❌ Symbol too long! Max 10 characters.\n\nTry again:")
+            return
+        if len(symbol) < 1:
+            bot.reply_to(message, "❌ Symbol cannot be empty!\n\nTry again:")
+            return
+        
+        state['symbol'] = symbol
+        state['step'] = 'image'
+        
+        bot.reply_to(message, f"✅ Symbol: {symbol}\n\n🖼 Now enter image URL (must start with http):")
+    
+    elif state['step'] == 'image':
+        # Validate image URL
+        image_url = message.text.strip()
+        if not image_url.startswith('http'):
+            bot.reply_to(message, "❌ Invalid URL! Must start with http or https.\n\nTry again:")
+            return
+        
+        state['image_url'] = image_url
+        
+        # Show preview and confirmation
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("✅ Launch Now", callback_data="launch_confirm"),
+            types.InlineKeyboardButton("❌ Cancel", callback_data="launch_cancel")
+        )
+        
+        preview_text = (
+            f"📋 TOKEN PREVIEW\n"
+            f"{'='*40}\n\n"
+            f"📝 Name: {state['name']}\n"
+            f"💱 Symbol: {state['symbol']}\n"
+            f"🖼 Image: {image_url}\n\n"
+            f"💰 Cost: ~0.056 SOL (~$10.77)\n"
+            f"🔄 Wallets: 12\n"
+            f"⏱ Time: ~2-3 minutes\n\n"
+            f"{'='*40}\n"
+            f"⚠️ Confirm to launch!"
+        )
+        
+        bot.reply_to(message, preview_text, reply_markup=markup)
+
 # Callback query handlers for buttons
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
@@ -275,8 +349,92 @@ def handle_callback(call):
         data = call.data
         chat_id = call.message.chat.id
         
+        # Launch wizard start
+        if data == "launch_start":
+            bot.answer_callback_query(call.id, "Starting launch wizard...")
+            
+            # Initialize wizard state
+            launch_wizard[chat_id] = {
+                'step': 'name',
+                'name': None,
+                'symbol': None,
+                'image_url': None
+            }
+            
+            bot.send_message(
+                chat_id,
+                "🚀 TOKEN LAUNCH WIZARD\n\n"
+                "Let's create your token step by step!\n\n"
+                "📝 Enter token NAME (e.g., Doge Coin, Moon Token):"
+            )
+        
+        # Launch confirmation
+        elif data == "launch_confirm":
+            if chat_id not in launch_wizard:
+                bot.answer_callback_query(call.id, "❌ Wizard expired, start again")
+                return
+            
+            bot.answer_callback_query(call.id, "🚀 Launching...")
+            
+            state = launch_wizard[chat_id]
+            name = state['name']
+            symbol = state['symbol']
+            image_url = state['image_url']
+            
+            # Clear wizard state
+            del launch_wizard[chat_id]
+            
+            # Launch token
+            bot.send_message(chat_id, f"[LAUNCH] Creating {name} ({symbol})...")
+            bot.send_message(chat_id, f"[INFO] 12 wallets will buy sequentially")
+            
+            try:
+                mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url))
+                
+                if mint:
+                    # Store active token
+                    active_token[chat_id] = mint
+                    
+                    # Create action buttons
+                    markup = types.InlineKeyboardMarkup()
+                    markup.row(
+                        types.InlineKeyboardButton("👁 Monitor", callback_data=f"monitor_{mint}"),
+                        types.InlineKeyboardButton("💀 Rug Now", callback_data=f"rug_{mint}")
+                    )
+                    markup.row(
+                        types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
+                        types.InlineKeyboardButton("📊 Status", callback_data="status")
+                    )
+                    
+                    success_text = (
+                        f"✅ TOKEN CREATED!\n\n"
+                        f"📍 Mint: {mint}\n\n"
+                        f"🤖 Auto-monitoring: ENABLED\n"
+                        f"⚡ Quick actions below:"
+                    )
+                    
+                    bot.send_message(chat_id, success_text, reply_markup=markup)
+                    
+                    # Auto-start monitoring
+                    try:
+                        asyncio.run(monitor.start(mint, chat_id))
+                    except Exception as monitor_error:
+                        bot.send_message(chat_id, f"[WARNING] Monitor failed: {monitor_error}")
+                else:
+                    bot.send_message(chat_id, f"❌ [ERROR] Launch failed")
+                    
+            except Exception as e:
+                bot.send_message(chat_id, f"❌ [ERROR] Launch failed: {e}")
+        
+        # Launch cancel
+        elif data == "launch_cancel":
+            if chat_id in launch_wizard:
+                del launch_wizard[chat_id]
+            bot.answer_callback_query(call.id, "❌ Launch cancelled")
+            bot.edit_message_text("❌ Launch cancelled", chat_id, call.message.message_id)
+        
         # Wallets button
-        if data == "wallets":
+        elif data == "wallets":
             bot.answer_callback_query(call.id, "Checking wallets...")
             handle_wallets_check(chat_id)
         
