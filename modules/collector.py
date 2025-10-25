@@ -3,14 +3,21 @@ Profit Collector - Consolidates SOL from bot wallets to main wallet
 """
 import asyncio
 from solana.rpc.async_api import AsyncClient
-from solders.system_program import TransferParams, transfer
-from solders.transaction import Transaction
+
+# Import system program and transaction with fallback
 try:
+    from solders.system_program import TransferParams, transfer
+    from solders.transaction import Transaction
     from solders.keypair import Keypair
     from solders.pubkey import Pubkey
+    USE_SOLDERS = True
 except ImportError:
+    # Fallback for older solana-py versions
+    from solana.system_program import TransferParams, transfer
+    from solana.transaction import Transaction
     from solana.keypair import Keypair
     from solana.publickey import PublicKey as Pubkey
+    USE_SOLDERS = False
 
 from .utils import load_wallets
 from .retry_utils import retry_async
@@ -24,14 +31,136 @@ class ProfitCollector:
         self.rpc_url = rpc_url
         self.wallets = load_wallets()
         
+        # Validate MAIN_WALLET
         if not MAIN_WALLET:
             print("[WARNING] ProfitCollector disabled - MAIN_WALLET not set")
             self.enabled = False
+        elif len(MAIN_WALLET) != 44 and len(MAIN_WALLET) != 43:
+            print(f"[ERROR] Invalid MAIN_WALLET length: {len(MAIN_WALLET)} (expected 43-44 chars)")
+            self.enabled = False
         else:
-            self.enabled = True
-            print(f"[OK] Profit Collector initialized: {len(self.wallets)} wallets -> {MAIN_WALLET[:8]}...")
+            # Test if it's a valid pubkey format
+            try:
+                test_pubkey = Pubkey.from_string(MAIN_WALLET)
+                self.enabled = True
+                print(f"[OK] Profit Collector initialized: {len(self.wallets)} wallets -> {MAIN_WALLET[:8]}...")
+            except Exception as e:
+                print(f"[ERROR] Invalid MAIN_WALLET format: {e}")
+                self.enabled = False
     
-    @retry_async(max_attempts=3, delay=1.0)
+    @retry_async(max_attempts=2, delay=0.5)
+    async def _transfer_single(self, wallet, wallet_index, main_pubkey):
+        """
+        Transfer SOL from a single wallet to main wallet (with retry).
+        
+        Args:
+            wallet: Keypair object
+            wallet_index: Wallet number (for logging)
+            main_pubkey: Main wallet Pubkey object
+        
+        Returns:
+            dict: Transfer result with status, amount, signature
+        """
+        try:
+            # Get wallet address
+            try:
+                wallet_addr = str(wallet.pubkey())
+            except:
+                wallet_addr = str(wallet.public_key)
+            
+            wallet_pubkey = Pubkey.from_string(wallet_addr)
+            
+            # Get balance
+            balance_resp = await self.client.get_balance(wallet_pubkey)
+            balance_lamports = balance_resp.value if balance_resp.value else 0
+            balance_sol = balance_lamports / 1e9
+            
+            print(f"   [{wallet_index}] {wallet_addr[:8]}... Balance: {balance_sol:.6f} SOL")
+            
+            # Skip if balance too low
+            MIN_BALANCE_LAMPORTS = 900000  # 0.0009 SOL minimum
+            if balance_lamports <= MIN_BALANCE_LAMPORTS:
+                print(f"   [{wallet_index}] Skipping (balance < 0.0009 SOL)")
+                return {
+                    "wallet": wallet_index,
+                    "address": wallet_addr,
+                    "status": "skipped",
+                    "balance": balance_sol,
+                    "reason": "Balance too low (< 0.0009 SOL)"
+                }
+            
+            # Calculate transfer amount
+            RENT_EXEMPT = 890880  # Solana standard rent-exempt minimum
+            TX_FEE_ESTIMATE = 5000  # ~0.000005 SOL transaction fee
+            RESERVE = RENT_EXEMPT + TX_FEE_ESTIMATE
+            
+            transfer_lamports = balance_lamports - RESERVE
+            transfer_sol = transfer_lamports / 1e9
+            
+            if transfer_lamports <= 0:
+                print(f"   [{wallet_index}] Skipping (insufficient after fees)")
+                return {
+                    "wallet": wallet_index,
+                    "address": wallet_addr,
+                    "status": "skipped",
+                    "balance": balance_sol,
+                    "reason": "Insufficient after fees"
+                }
+            
+            # Build transfer transaction
+            print(f"   [{wallet_index}] Transferring {transfer_sol:.6f} SOL...")
+            
+            # Get recent blockhash
+            blockhash_resp = await self.client.get_latest_blockhash()
+            recent_blockhash = blockhash_resp.value.blockhash
+            
+            # Create transfer instruction
+            transfer_ix = transfer(
+                TransferParams(
+                    from_pubkey=wallet_pubkey,
+                    to_pubkey=main_pubkey,
+                    lamports=transfer_lamports
+                )
+            )
+            
+            # Build and sign transaction
+            tx = Transaction([transfer_ix], wallet_pubkey, recent_blockhash)
+            tx.sign([wallet])
+            
+            # Send transaction
+            send_result = await self.client.send_raw_transaction(
+                bytes(tx),
+                opts={"skipPreflight": False, "preflightCommitment": "confirmed"}
+            )
+            
+            if send_result.value:
+                signature = str(send_result.value)
+                print(f"   [{wallet_index}] [OK] TX: {signature[:16]}...")
+                
+                return {
+                    "wallet": wallet_index,
+                    "address": wallet_addr,
+                    "status": "success",
+                    "amount": transfer_sol,
+                    "signature": signature
+                }
+            else:
+                print(f"   [{wallet_index}] [ERROR] Transaction failed")
+                return {
+                    "wallet": wallet_index,
+                    "address": wallet_addr,
+                    "status": "failed",
+                    "reason": "Transaction rejected"
+                }
+        
+        except Exception as e:
+            print(f"   [{wallet_index}] [ERROR] {e}")
+            return {
+                "wallet": wallet_index,
+                "status": "error",
+                "reason": str(e)
+            }
+    
     async def collect_all(self):
         """
         Collect all SOL from bot wallets to main wallet.
@@ -71,109 +200,17 @@ class ProfitCollector:
                     "details": []
                 }
             
-            # Collect from each wallet
+            # Collect from each wallet (with per-wallet retry)
             for i, wallet in enumerate(self.wallets[:NUM_WALLETS]):
-                try:
-                    # Get wallet address
-                    try:
-                        wallet_addr = str(wallet.pubkey())
-                    except:
-                        wallet_addr = str(wallet.public_key)
-                    
-                    wallet_pubkey = Pubkey.from_string(wallet_addr)
-                    
-                    # Get balance
-                    balance_resp = await self.client.get_balance(wallet_pubkey)
-                    balance_lamports = balance_resp.value if balance_resp.value else 0
-                    balance_sol = balance_lamports / 1e9
-                    
-                    print(f"   [{i}] {wallet_addr[:8]}... Balance: {balance_sol:.6f} SOL")
-                    
-                    # Skip if balance too low (need to keep some for rent + fees)
-                    MIN_BALANCE = 0.001  # Keep 0.001 SOL for rent
-                    if balance_sol <= MIN_BALANCE:
-                        print(f"   [{i}] Skipping (balance too low)")
-                        results["details"].append({
-                            "wallet": i,
-                            "address": wallet_addr,
-                            "status": "skipped",
-                            "balance": balance_sol,
-                            "reason": "Balance too low"
-                        })
-                        continue
-                    
-                    # Calculate transfer amount (leave minimum for rent)
-                    transfer_lamports = balance_lamports - 5000  # Leave 0.000005 SOL for rent
-                    transfer_sol = transfer_lamports / 1e9
-                    
-                    if transfer_lamports <= 0:
-                        print(f"   [{i}] Skipping (insufficient after fees)")
-                        results["details"].append({
-                            "wallet": i,
-                            "address": wallet_addr,
-                            "status": "skipped",
-                            "balance": balance_sol,
-                            "reason": "Insufficient after fees"
-                        })
-                        continue
-                    
-                    # Build transfer transaction
-                    print(f"   [{i}] Transferring {transfer_sol:.6f} SOL...")
-                    
-                    # Get recent blockhash
-                    blockhash_resp = await self.client.get_latest_blockhash()
-                    recent_blockhash = blockhash_resp.value.blockhash
-                    
-                    # Create transfer instruction
-                    transfer_ix = transfer(
-                        TransferParams(
-                            from_pubkey=wallet_pubkey,
-                            to_pubkey=main_pubkey,
-                            lamports=transfer_lamports
-                        )
-                    )
-                    
-                    # Build and sign transaction
-                    tx = Transaction([transfer_ix], wallet_pubkey, recent_blockhash)
-                    tx.sign([wallet])
-                    
-                    # Send transaction
-                    send_result = await self.client.send_raw_transaction(
-                        bytes(tx),
-                        opts={"skipPreflight": False, "preflightCommitment": "confirmed"}
-                    )
-                    
-                    if send_result.value:
-                        signature = str(send_result.value)
-                        print(f"   [{i}] [OK] TX: {signature[:16]}...")
-                        
-                        results["transferred"] += 1
-                        results["collected"] += transfer_sol
-                        results["details"].append({
-                            "wallet": i,
-                            "address": wallet_addr,
-                            "status": "success",
-                            "amount": transfer_sol,
-                            "signature": signature
-                        })
-                    else:
-                        print(f"   [{i}] [ERROR] Transaction failed")
-                        results["failed"] += 1
-                        results["details"].append({
-                            "wallet": i,
-                            "address": wallet_addr,
-                            "status": "failed",
-                            "reason": "Transaction rejected"
-                        })
-                    
-                except Exception as e:
-                    print(f"   [{i}] [ERROR] {e}")
+                result = await self._transfer_single(wallet, i, main_pubkey)
+                
+                results["details"].append(result)
+                
+                if result["status"] == "success":
+                    results["transferred"] += 1
+                    results["collected"] += result["amount"]
+                elif result["status"] in ["failed", "error"]:
                     results["failed"] += 1
-                    results["details"].append({
-                        "wallet": i,
-                        "status": "error",
-                        "reason": str(e)
-                    })
             
             # Summary
             print(f"\n[COLLECT] Complete:")
