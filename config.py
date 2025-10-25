@@ -49,7 +49,7 @@ MAX_RETRIES = 5
 RETRY_DELAY = 1.0  # seconds
 
 # Rug Params (2025 OPTIMIZED for efficiency - 56% cost reduction)
-NUM_WALLETS = 12  # Reduced from 20 for 40% cost savings  
+NUM_WALLETS = 1  # SINGLE WALLET MODE - Uses only wallet_0 (already funded)
 BUNDLE_SOL = 0.0025  # Reduced from 0.005 for 50% savings per wallet
 BUNDLE_DELAY = 3.0  # Increased to 2-4s random for organic appearance
 WASH_INTERVAL = 30  # Reduced from 60s for faster monitoring response
