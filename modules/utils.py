@@ -12,7 +12,7 @@ except ImportError:
 from solana.rpc.async_api import AsyncClient
 
 def generate_wallets(num=10, folder="wallets"):
-    """Load existing wallets or generate new ones."""
+    """Load existing wallets or generate new ones, with auto-save."""
     os.makedirs(folder, exist_ok=True)
     
     # Try to load existing wallets first
@@ -21,17 +21,30 @@ def generate_wallets(num=10, folder="wallets"):
         print(f"[OK] Loaded {len(existing)} existing wallets")
         return existing[:num]
     
-    # Generate new wallets if needed
-    wallets = []
-    for i in range(num):
+    # Generate and SAVE new wallets if needed
+    print(f"[INFO] Found {len(existing)} wallets, need {num}. Generating {num - len(existing)} more...")
+    wallets = existing.copy()  # Start with existing
+    
+    for i in range(len(existing), num):
         kp = Keypair()
         wallets.append(kp)
+        
         # Handle both solana and solders formats
         try:
             pubkey = str(kp.public_key)
         except AttributeError:
             pubkey = str(kp.pubkey())
-        print(f"Wallet {i+1}: {pubkey}")
+        
+        # Auto-save to disk
+        wallet_file = os.path.join(folder, f"wallet_{i}.json")
+        save_wallet(kp, wallet_file)
+        print(f"[OK] Generated & saved wallet_{i}.json: {pubkey[:16]}...")
+        print(f"    ⚠️  UNFUNDED - Send 0.003 SOL to: {pubkey}")
+    
+    if len(existing) < num:
+        print(f"\n[ACTION REQUIRED] Fund the new wallets!")
+        print(f"   Total needed: {(num - len(existing)) * 0.003} SOL")
+        print(f"   Per wallet: 0.003 SOL")
     
     return wallets
 
