@@ -34,7 +34,7 @@ rugger = RugExecutor(RPC_URL)
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     """Start command."""
-    bot.reply_to(message, "Rug Bot Ready! Commands:\n/launch <name> <symbol> <image>\n/monitor <mint>\n/rug <mint>")
+    bot.reply_to(message, "Rug Bot Ready! Commands:\n/launch <name> <symbol> <image>\n/wallets - Check wallet funding status\n/monitor <mint>\n/rug <mint>\n/status - Bot status")
 
 @bot.message_handler(commands=['launch'])
 def handle_launch(message):
@@ -59,7 +59,7 @@ def handle_launch(message):
             return
         
         bot.reply_to(message, f"[LAUNCH] Creating {name} ({symbol})...")
-        bot.reply_to(message, f"[INFO] 20 wallets will buy sequentially")
+        bot.reply_to(message, f"[INFO] 12 wallets will buy sequentially")
         
         mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url))
         
@@ -125,6 +125,100 @@ def handle_status(message):
         bot.reply_to(message, f"Bot Status:\nActive tokens: {len(status['active_tokens'])}\nWash trades: {status['wash_count']}")
     except Exception as e:
         bot.reply_to(message, f"Status check failed: {e}")
+
+@bot.message_handler(commands=['wallets'])
+def handle_wallets(message):
+    """Check wallet funding status."""
+    try:
+        from solana.rpc.api import Client
+        from modules.utils import load_wallets
+        import os
+        import json
+        
+        bot.reply_to(message, "[INFO] Checking wallet funding status...")
+        
+        # Load wallets
+        wallets = load_wallets()
+        if not wallets:
+            bot.reply_to(message, "[ERROR] No wallets found! Bot will generate them on first launch.")
+            return
+        
+        # Connect to RPC
+        client = Client(RPC_URL)
+        
+        # Check balances
+        funded_count = 0
+        unfunded_count = 0
+        total_balance = 0.0
+        
+        response_lines = ["WALLET FUNDING STATUS\n" + "="*40 + "\n"]
+        
+        for i, wallet in enumerate(wallets):
+            try:
+                # Get wallet address
+                try:
+                    wallet_addr = str(wallet.pubkey())
+                except:
+                    wallet_addr = str(wallet.public_key)
+                
+                # Get balance
+                balance_resp = client.get_balance(wallet_addr)
+                balance_sol = balance_resp.value / 1e9 if balance_resp.value else 0.0
+                total_balance += balance_sol
+                
+                # Determine status
+                if balance_sol >= 0.003:
+                    status = "FUNDED"
+                    funded_count += 1
+                    emoji = "[OK]"
+                elif balance_sol > 0:
+                    status = "LOW"
+                    unfunded_count += 1
+                    emoji = "[LOW]"
+                else:
+                    status = "EMPTY"
+                    unfunded_count += 1
+                    emoji = "[EMPTY]"
+                
+                # Add to response
+                response_lines.append(f"{emoji} Wallet {i}: {balance_sol:.4f} SOL")
+                response_lines.append(f"   {wallet_addr[:16]}...{wallet_addr[-8:]}")
+                response_lines.append(f"   Status: {status}\n")
+                
+            except Exception as e:
+                response_lines.append(f"[ERROR] Wallet {i}: {str(e)[:30]}\n")
+        
+        # Summary
+        response_lines.append("="*40)
+        response_lines.append(f"\nSUMMARY:")
+        response_lines.append(f"  Total wallets: {len(wallets)}")
+        response_lines.append(f"  Funded: {funded_count}")
+        response_lines.append(f"  Need funding: {unfunded_count}")
+        response_lines.append(f"  Total balance: {total_balance:.4f} SOL")
+        
+        if unfunded_count > 0:
+            needed_sol = unfunded_count * 0.003
+            response_lines.append(f"\n[ACTION] FUNDING REQUIRED:")
+            response_lines.append(f"  Fund {unfunded_count} wallets")
+            response_lines.append(f"  Need: {needed_sol:.4f} SOL total")
+            response_lines.append(f"  (0.003 SOL per wallet)")
+        else:
+            response_lines.append(f"\n[OK] All wallets funded!")
+        
+        # Send response (split if too long)
+        response = "\n".join(response_lines)
+        if len(response) > 4000:
+            # Split into chunks
+            chunks = [response[i:i+4000] for i in range(0, len(response), 4000)]
+            for chunk in chunks:
+                bot.reply_to(message, chunk)
+        else:
+            bot.reply_to(message, response)
+            
+    except Exception as e:
+        bot.reply_to(message, f"[ERROR] Wallet check failed: {e}")
+        import traceback
+        print(f"[ERROR] Wallet check trace: {traceback.format_exc()}")
 
 if __name__ == "__main__":
     print("Simple Rug Bot Starting...")
