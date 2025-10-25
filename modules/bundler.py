@@ -91,7 +91,6 @@ class RugBundler:
                 delay = 2.0
             
             sol_lamports = int(amount * 1e9)
-            from config import NUM_WALLETS
             num_wallets = min(len(self.wallets), NUM_WALLETS)
             
             print(f"[TARGET] OPTIMIZED sequential bundling")
