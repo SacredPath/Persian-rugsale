@@ -235,8 +235,8 @@ def handle_wallets(message):
                 balance_sol = balance_resp.value / 1e9 if balance_resp.value else 0.0
                 total_balance += balance_sol
                 
-                # Determine status
-                if balance_sol >= 0.003:
+                # Determine status (updated for 0.0075 SOL buys)
+                if balance_sol >= 0.01:
                     status = "FUNDED"
                     funded_count += 1
                     indicator = "[OK]"
@@ -266,11 +266,11 @@ def handle_wallets(message):
         response_lines.append(f"  Total balance: {total_balance:.4f} SOL")
         
         if unfunded_count > 0:
-            needed_sol = unfunded_count * 0.003
+            needed_sol = unfunded_count * 0.01
             response_lines.append(f"\n[WARNING] ACTION REQUIRED:")
             response_lines.append(f"  Fund {unfunded_count} wallets")
             response_lines.append(f"  Need: {needed_sol:.4f} SOL total")
-            response_lines.append(f"  (0.003 SOL per wallet)")
+            response_lines.append(f"  (0.01 SOL per wallet - covers 0.0075 buy + fees)")
         else:
             response_lines.append(f"\n[OK] All wallets funded!")
         
@@ -584,8 +584,8 @@ def handle_wallets_check(chat_id):
                 balance_sol = balance_resp.value / 1e9 if balance_resp.value else 0.0
                 total_balance += balance_sol
                 
-                # Determine status
-                if balance_sol >= 0.003:
+                # Determine status (updated for 0.0075 SOL buys)
+                if balance_sol >= 0.01:
                     status = "FUNDED"
                     funded_count += 1
                     indicator = "[OK]"
@@ -615,11 +615,11 @@ def handle_wallets_check(chat_id):
         response_lines.append(f"  Total balance: {total_balance:.4f} SOL")
         
         if unfunded_count > 0:
-            needed_sol = unfunded_count * 0.003
+            needed_sol = unfunded_count * 0.01
             response_lines.append(f"\n[WARNING] ACTION REQUIRED:")
             response_lines.append(f"  Fund {unfunded_count} wallets")
             response_lines.append(f"  Need: {needed_sol:.4f} SOL total")
-            response_lines.append(f"  (0.003 SOL per wallet)")
+            response_lines.append(f"  (0.01 SOL per wallet - covers 0.0075 buy + fees)")
         else:
             response_lines.append(f"\n[OK] All wallets funded!")
         
