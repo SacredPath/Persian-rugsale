@@ -1,0 +1,29 @@
+# .editorconfig - Tells Replit to not auto-modify files
+# https://editorconfig.org/
+
+root = true
+
+[*]
+# Disable Replit's aggressive auto-formatting
+insert_final_newline = false
+trim_trailing_whitespace = false
+
+# Use Unix line endings (LF) consistently
+end_of_line = lf
+
+# Preserve original indentation
+indent_style = space
+indent_size = 4
+
+# Prevent encoding changes
+charset = utf-8
+
+[*.py]
+indent_size = 4
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
