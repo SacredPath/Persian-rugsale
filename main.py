@@ -135,6 +135,12 @@ def handle_wallets(message):
         import os
         import json
         
+        # Import Pubkey
+        try:
+            from solders.pubkey import Pubkey
+        except ImportError:
+            from solana.publickey import PublicKey as Pubkey
+        
         bot.reply_to(message, "[INFO] Checking wallet funding status...")
         
         # Load wallets
@@ -161,8 +167,11 @@ def handle_wallets(message):
                 except:
                     wallet_addr = str(wallet.public_key)
                 
+                # Convert string to Pubkey object
+                pubkey_obj = Pubkey.from_string(wallet_addr)
+                
                 # Get balance
-                balance_resp = client.get_balance(wallet_addr)
+                balance_resp = client.get_balance(pubkey_obj)
                 balance_sol = balance_resp.value / 1e9 if balance_resp.value else 0.0
                 total_balance += balance_sol
                 
