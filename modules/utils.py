@@ -39,12 +39,12 @@ def generate_wallets(num=10, folder="wallets"):
         wallet_file = os.path.join(folder, f"wallet_{i}.json")
         save_wallet(kp, wallet_file)
         print(f"[OK] Generated & saved wallet_{i}.json: {pubkey[:16]}...")
-        print(f"    ⚠️  UNFUNDED - Send 0.003 SOL to: {pubkey}")
+        print(f"    [WARNING] UNFUNDED - Send 0.01 SOL to: {pubkey}")
     
     if len(existing) < num:
         print(f"\n[ACTION REQUIRED] Fund the new wallets!")
-        print(f"   Total needed: {(num - len(existing)) * 0.003} SOL")
-        print(f"   Per wallet: 0.003 SOL")
+        print(f"   Total needed: {(num - len(existing)) * 0.01} SOL")
+        print(f"   Per wallet: 0.01 SOL (covers 0.0075 buy + fees)")
     
     return wallets
 

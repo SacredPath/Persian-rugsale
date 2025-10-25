@@ -10,7 +10,7 @@ from .retry_utils import retry_async
 from .real_swaps import sell_token_simple
 from .real_token import get_token_balance_simple
 from .pumpfun_real import PumpFunReal
-from config import NUM_WALLETS
+from config import NUM_WALLETS, BUNDLE_SOL
 
 class RugExecutor:
     def __init__(self, rpc_url):
@@ -146,8 +146,10 @@ class RugExecutor:
             print(f"   Sells executed: {success_count}/{total_attempted} ({success_rate:.1f}%)")
             print(f"   SOL recovered: {total_sol_received:.4f} SOL")
             if total_sol_received > 0:
-                roi = (total_sol_received / (success_count * 0.005)) * 100
-                print(f"   ROI: {roi:.1f}x")
+                # ROI calculation: (recovered / invested) * 100
+                total_invested = success_count * BUNDLE_SOL
+                roi = (total_sol_received / total_invested) * 100 if total_invested > 0 else 0
+                print(f"   ROI: {roi:.1f}x (invested: {total_invested:.4f} SOL)")
             
             return success_count > 0
                 

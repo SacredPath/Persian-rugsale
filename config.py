@@ -57,12 +57,15 @@ RUG_THRESHOLD_MC = 69000  # USD MC at graduation to PumpSwap
 TARGET_SUPPLY_GRAB = 0.15  # 15% supply grab (realistic)
 
 # Cost Breakdown (at $194/SOL):
-# - Token creation: 0.015 SOL (~$2.91)
+# - Token creation: 0.02 SOL (~$3.88) ⚠️ UPDATED!
 # - Buys (4 wallets): 0.03 SOL (~$5.82)
-# - Trade fees (1.25%): 0.0004 SOL (~$0.08)
+# - Trade fees (~1%): 0.0003 SOL (~$0.06)
 # - Priority tips: 0.002 SOL (~$0.39)
-# - Network: 0.00002 SOL (~$0.004)
-# TOTAL: ~0.047 SOL (~$9.20) ✅ UNDER $10!
+# - Network: 0.00005 SOL (~$0.01)
+# TOTAL: ~0.05235 SOL (~$10.16) ⚠️ SLIGHTLY OVER $10!
+#
+# NOTE: At $192/SOL or lower, stays under $10
+# To guarantee <$10: reduce JITO_TIP to 0.0003 or skip entirely
 
 # Volume monitoring & abort logic (prevent losses on stalled tokens)
 MIN_REAL_VOLUME = 0.05  # Minimum 0.05 SOL real buys to continue monitoring

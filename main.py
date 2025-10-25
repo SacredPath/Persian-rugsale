@@ -354,7 +354,7 @@ def handle_wizard_input(message):
             f"Name: {state['name']}\n"
             f"Symbol: {state['symbol']}\n"
             f"Image: {image_url}\n\n"
-            f"Cost: ~0.047 SOL (~$9.20) OPTIMIZED!\n"
+            f"Cost: ~0.053 SOL (~$10.20) Budget-optimized\n"
             f"Wallets: 4 (efficient for quick pumps)\n"
             f"Time: ~1 minute\n\n"
             f"{'='*40}\n"
