@@ -9,3 +9,4 @@ spl-token==0.2.0
 anchorpy==0.18.0
 construct==2.10.68
 httpx==0.23.3
+flask==2.3.0
