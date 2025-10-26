@@ -146,7 +146,7 @@ class RugBundler:
                     print(f"[WARNING] Could not verify on-chain (RPC issue): {verify_error}")
                     print(f"[INFO] Proceeding anyway - bundle was submitted successfully")
                 
-            return mint
+                return mint
             else:
                 print(f"[ERROR] Bundled token creation failed")
                 print(f"[ERROR] Check console logs for details")
