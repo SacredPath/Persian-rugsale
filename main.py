@@ -106,60 +106,78 @@ def handle_launch(message):
             bot.reply_to(message, "[ERROR] Description too long (max 200 chars)")
             return
         
+        from modules.error_handler import format_error, log_error
+        from config import NUM_WALLETS
+        
         bot.reply_to(message, f"[LAUNCH] Creating {name} ({symbol})...")
         bot.reply_to(message, f"[INFO] {description}")
-        bot.reply_to(message, f"[INFO] 4 wallets will buy sequentially (optimized for <$10)")
+        bot.reply_to(message, f"[INFO] {NUM_WALLETS} wallets will buy sequentially (optimized for <$10)")
         
-        mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url, description))
-        
-        if mint:
-            # Store active token for this chat
-            active_token[message.chat.id] = mint
+        try:
+            mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url, description))
             
-            # Create action buttons (use short callbacks, mint stored in active_token)
-            markup = types.InlineKeyboardMarkup()
-            markup.row(
-                types.InlineKeyboardButton("Monitor", callback_data="monitor_active"),
-                types.InlineKeyboardButton("Rug Now", callback_data="rug_active")
-            )
-            markup.row(
-                types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
-                types.InlineKeyboardButton("Status", callback_data="status")
-            )
-            
-            success_text = (
-                f"[OK] TOKEN CREATED!\n\n"
-                f"Mint: {mint}\n\n"
-                f"Auto-monitoring: ENABLED\n"
-                f"Quick actions below:"
-            )
-            
-            bot.reply_to(message, success_text, reply_markup=markup)
-            print(f"[DEBUG] Sent success message with 4 buttons to chat {message.chat.id}")
-            
-            # Auto-start monitoring in background thread (non-blocking)
-            try:
-                import threading
-                def run_monitor():
-                    try:
-                        asyncio.run(monitor.start(mint, message.chat.id))
-                    except Exception as e:
-                        print(f"[ERROR] Monitor background task failed: {e}")
+            if mint:
+                # Store active token for this chat
+                active_token[message.chat.id] = mint
                 
-                monitor_thread = threading.Thread(target=run_monitor, daemon=True)
-                monitor_thread.start()
-                print(f"[INFO] Monitoring started in background for {mint[:8]}...")
-            except Exception as monitor_error:
-                bot.reply_to(message, f"[WARNING] Monitor failed to start: {monitor_error}")
-        else:
-            bot.reply_to(message, f"[ERROR] Launch failed")
+                # Create action buttons (use short callbacks, mint stored in active_token)
+                markup = types.InlineKeyboardMarkup()
+                markup.row(
+                    types.InlineKeyboardButton("Monitor", callback_data="monitor_active"),
+                    types.InlineKeyboardButton("Rug Now", callback_data="rug_active")
+                )
+                markup.row(
+                    types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
+                    types.InlineKeyboardButton("Status", callback_data="status")
+                )
+                
+                success_text = (
+                    f"[OK] TOKEN CREATED!\n\n"
+                    f"Mint: {mint}\n\n"
+                    f"Auto-monitoring: ENABLED\n"
+                    f"Quick actions below:"
+                )
+                
+                bot.reply_to(message, success_text, reply_markup=markup)
+                print(f"[DEBUG] Sent success message with 4 buttons to chat {message.chat.id}")
+                
+                # Auto-start monitoring in background thread (non-blocking)
+                try:
+                    import threading
+                    def run_monitor():
+                        try:
+                            asyncio.run(monitor.start(mint, message.chat.id))
+                        except Exception as e:
+                            log_error(e, f"Monitor background task for {mint[:8]}")
+                            formatted_error = format_error(e, "monitoring")
+                            bot.reply_to(message, f"[WARNING] Monitor stopped: {formatted_error}")
+                    
+                    monitor_thread = threading.Thread(target=run_monitor, daemon=True)
+                    monitor_thread.start()
+                    print(f"[INFO] Monitoring started in background for {mint[:8]}...")
+                except Exception as monitor_error:
+                    log_error(monitor_error, "Monitor thread creation")
+                    formatted_error = format_error(monitor_error, "monitor setup")
+                    bot.reply_to(message, formatted_error)
+            else:
+                bot.reply_to(message, f"[ERROR] Launch failed\n\nToken creation returned no mint address.\nCheck console logs for details.")
+                
+        except Exception as launch_error:
+            # Log detailed error to console
+            log_error(launch_error, f"Token launch: {name} ({symbol})")
+            
+            # Send user-friendly error to Telegram
+            formatted_error = format_error(launch_error, "token launch")
+            bot.reply_to(message, formatted_error + "\n\nTip: Check wallet balances and RPC connection")
             
     except ValueError as ve:
         bot.reply_to(message, f"[ERROR] Validation failed: {ve}")
     except Exception as e:
-        bot.reply_to(message, f"[ERROR] Launch failed: {e}")
-        import traceback
-        print(f"[ERROR] Full trace: {traceback.format_exc()}")
+        # Catch outer exceptions
+        from modules.error_handler import format_error, log_error
+        log_error(e, "/launch command")
+        formatted_error = format_error(e, "/launch command")
+        bot.reply_to(message, formatted_error)
 
 @bot.message_handler(commands=['monitor'])
 def handle_monitor(message):
@@ -444,9 +462,10 @@ def handle_callback(call):
             del launch_wizard[chat_id]
             
             # Launch token
+            from config import NUM_WALLETS
             bot.send_message(chat_id, f"[LAUNCH] Creating {name} ({symbol})...")
             bot.send_message(chat_id, f"[INFO] {description}")
-            bot.send_message(chat_id, f"[INFO] 4 wallets will buy sequentially (optimized for <$10)")
+            bot.send_message(chat_id, f"[INFO] {NUM_WALLETS} wallets will buy sequentially (optimized for <$10)")
             
             try:
                 from modules.error_handler import format_error, log_error
@@ -631,9 +650,10 @@ def handle_callback(call):
                     result = asyncio.run(collector.collect_all())
                     
                     if result["success"]:
+                        from config import NUM_WALLETS
                         message = (
                             f"[OK] PROFIT COLLECTION COMPLETE!\n\n"
-                            f"Transferred: {result['transferred']}/4 wallets\n"
+                            f"Transferred: {result['transferred']}/{NUM_WALLETS} wallets\n"
                             f"Total collected: {result['collected']:.6f} SOL\n"
                             f"Failed: {result['failed']}\n\n"
                             f"Sent to: {MAIN_WALLET[:16]}..."
@@ -682,6 +702,7 @@ def handle_wallets_check(chat_id):
     try:
         from solana.rpc.api import Client
         from modules.utils import load_wallets
+        from modules.error_handler import format_error, log_error
         
         # Import Pubkey
         try:
@@ -773,13 +794,18 @@ def handle_wallets_check(chat_id):
             bot.send_message(chat_id, response)
             
     except Exception as e:
-        bot.send_message(chat_id, f"[ERROR] Wallet check failed: {e}")
-        import traceback
-        print(f"[ERROR] Wallet check trace: {traceback.format_exc()}")
+        # Log detailed error to console
+        log_error(e, "Wallet balance check")
+        
+        # Send user-friendly error to Telegram
+        formatted_error = format_error(e, "wallet check")
+        bot.send_message(chat_id, formatted_error)
 
 def handle_status_check(chat_id):
     """Handle status check from button."""
     try:
+        from modules.error_handler import format_error, log_error
+        
         status = monitor.get_status()
         status_text = (
             f"BOT STATUS\n\n"
@@ -788,7 +814,12 @@ def handle_status_check(chat_id):
         )
         bot.send_message(chat_id, status_text)
     except Exception as e:
-        bot.send_message(chat_id, f"[ERROR] Status check failed: {e}")
+        # Log detailed error to console
+        log_error(e, "Status check")
+        
+        # Send user-friendly error to Telegram
+        formatted_error = format_error(e, "status check")
+        bot.send_message(chat_id, formatted_error)
 
 if __name__ == "__main__":
     from modules.error_handler import log_error
