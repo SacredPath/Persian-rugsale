@@ -257,17 +257,26 @@ class PumpFunReal:
         """
         try:
             import base58
+            import sys
+            import importlib
+            
             try:
+                # Use importlib to avoid confusion with local config.py
                 from solders.transaction import VersionedTransaction
-                from solders.rpc import config as solders_rpc_config
                 from solders.commitment_config import CommitmentLevel
+                
+                # Explicitly import solders.rpc.config using importlib
+                solders_rpc_config = importlib.import_module('solders.rpc.config')
                 TxOpts = solders_rpc_config.TxOpts
-            except (ImportError, AttributeError) as e:
+                
+            except (ImportError, AttributeError, ModuleNotFoundError) as e:
                 print(f"[ERROR] Sequential mode requires 'solders' library")
                 print(f"[ERROR] PumpPortal returns versioned transactions that legacy solana-py cannot sign")
-                print(f"[FIX] On Replit, run in Shell: pip install --upgrade --force-reinstall solders==0.18.1")
-                print(f"[FIX] Then restart the bot")
+                print(f"[FIX] On Replit Shell: pip install --upgrade --force-reinstall solders==0.18.1")
+                print(f"[FIX] Then run: find . -name '*.pyc' -delete && python main.py")
                 print(f"[ERROR] Import error: {e}")
+                import traceback
+                traceback.print_exc()
                 return None
             
             print(f"[SEQUENTIAL] Creating token: {name} ({symbol})")
