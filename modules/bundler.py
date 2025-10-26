@@ -60,10 +60,12 @@ class RugBundler:
                 except ImportError:
                     from solana.publickey import PublicKey as Pubkey
                 
-                from config import PUMPFUN_CREATE_FEE, BUNDLE_SOL, JITO_TIP
+                from config import PUMPFUN_CREATE_FEE, BUNDLE_SOL, JITO_TIP, USE_JITO_BUNDLES
                 
                 # Define minimum required balances
-                creator_min = PUMPFUN_CREATE_FEE + BUNDLE_SOL + JITO_TIP + 0.002  # Creation + buy + tip + buffer
+                # Only include Jito tip if bundled mode is enabled
+                jito_tip_cost = JITO_TIP if USE_JITO_BUNDLES else 0.0
+                creator_min = PUMPFUN_CREATE_FEE + BUNDLE_SOL + jito_tip_cost + 0.002  # Creation + buy + tip (if bundled) + buffer
                 buyer_min = BUNDLE_SOL + 0.002  # Buy + buffer
                 
                 all_funded = True
@@ -77,7 +79,10 @@ class RugBundler:
                     # Determine required balance based on wallet role
                     if i == 0:
                         required_sol = creator_min
-                        role = "Creator (create + buy + tip)"
+                        if USE_JITO_BUNDLES:
+                            role = "Creator (create + buy + tip)"
+                        else:
+                            role = "Creator (create + buy, no tip)"
                     else:
                         required_sol = buyer_min
                         role = f"Buyer {i}"
