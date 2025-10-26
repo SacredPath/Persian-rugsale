@@ -44,10 +44,12 @@ class RugBundler:
             # REDUCED from 4 to 3 for safer bundle size (3 txs + 1 tip = 4 total, well under 5 max)
             wallets_for_bundle = self.wallets[:3]  # Use 3 wallets total
             
+            from config import BUNDLE_SOL
             print(f"[INFO] Bundle composition:")
-            print(f"   - Wallet 0: Create + buy {1000000} tokens")
-            print(f"   - Wallet 1-2: Buy {1000000} tokens each")
+            print(f"   - Wallet 0: Create + buy with {BUNDLE_SOL} SOL")
+            print(f"   - Wallet 1-2: Buy with {BUNDLE_SOL} SOL each")
             print(f"   - Total: 3 transactions in atomic bundle (safer margin)")
+            print(f"   - Total buy volume: {BUNDLE_SOL * 3} SOL")
             
             # PRE-FLIGHT: Check wallet balances BEFORE creating bundle (prevent failed txs)
             print(f"\n[PRE-FLIGHT] Checking wallet balances...")
@@ -101,13 +103,13 @@ class RugBundler:
                 print(f"[WARNING] Proceeding anyway - ensure wallets are funded!")
             
             # Create token with bundled buys (NO API KEY NEEDED!)
+            # Buy amounts determined by config.BUNDLE_SOL (e.g., 0.0075 SOL per wallet)
             mint = await self.pumpfun.create_token_bundled(
                 wallets=wallets_for_bundle,
                 name=name,
                 symbol=symbol,
                 description=description,
                 image_url=image_url,
-                buy_amount_tokens=1000000,  # 1M tokens per wallet
                 twitter=None,
                 telegram=None,
                 website=None

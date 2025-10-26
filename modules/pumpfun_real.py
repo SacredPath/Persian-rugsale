@@ -234,7 +234,6 @@ class PumpFunReal:
         symbol: str,
         description: str,
         image_url: str,
-        buy_amount_tokens: int = 1000000,  # Tokens per wallet (NOT SOL!)
         twitter: Optional[str] = None,
         telegram: Optional[str] = None,
         website: Optional[str] = None
@@ -254,7 +253,6 @@ class PumpFunReal:
             symbol: Token symbol
             description: Token description
             image_url: Image URL (direct link or will auto-convert Imgur)
-            buy_amount_tokens: Tokens per wallet (default 1M tokens each)
             twitter: Twitter link (optional)
             telegram: Telegram link (optional)
             website: Website URL (optional)
@@ -262,7 +260,10 @@ class PumpFunReal:
         Returns:
             Token mint address or None
             
-        Note: NO API KEY NEEDED! Uses /trade-local endpoint
+        Note: 
+            - NO API KEY NEEDED! Uses /trade-local endpoint
+            - Buy amounts are determined by config.BUNDLE_SOL (predictable costs)
+            - Uses denominatedInSol=true for consistent pricing
         """
         try:
             import base58
@@ -361,6 +362,8 @@ class PumpFunReal:
             bundled_tx_args = []
             
             # First transaction: CREATE with dev buy
+            # CRITICAL: Use SOL amounts (denominatedInSol: true) for predictable costs!
+            from config import BUNDLE_SOL
             creator_pubkey = str(creator_wallet.pubkey() if hasattr(creator_wallet, 'pubkey') else creator_wallet.public_key)
             bundled_tx_args.append({
                 'publicKey': creator_pubkey,
@@ -371,8 +374,8 @@ class PumpFunReal:
                     'uri': metadata_uri
                 },
                 'mint': mint_address,
-                'denominatedInSol': 'false',  # Use tokens, not SOL
-                'amount': buy_amount_tokens,  # Tokens to buy
+                'denominatedInSol': 'true',  # CRITICAL: Use SOL amounts for predictable costs
+                'amount': BUNDLE_SOL,  # SOL to spend (e.g., 0.0075 SOL)
                 'slippage': 10,
                 'priorityFee': 0.0005,
                 'pool': 'pump'
@@ -387,8 +390,8 @@ class PumpFunReal:
                     'publicKey': buyer_pubkey,
                     'action': 'buy',
                     'mint': mint_address,
-                    'denominatedInSol': 'false',
-                    'amount': buy_amount_tokens,
+                    'denominatedInSol': 'true',  # CRITICAL: Use SOL amounts for predictable costs
+                    'amount': BUNDLE_SOL,  # SOL to spend (e.g., 0.0075 SOL)
                     'slippage': 50,  # High slippage for atomic bundle (ensures all txs succeed together)
                     'priorityFee': 0.0001,  # Ignored after first tx
                     'pool': 'pump'
