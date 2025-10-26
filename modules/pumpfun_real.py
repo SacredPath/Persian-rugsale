@@ -18,12 +18,32 @@ from .retry_utils import retry_async
 # Pump.fun API endpoints (Official PumpPortal documentation)
 # Step 1: Upload metadata to pump.fun
 # Step 2: Generate bundled transactions via /trade-local (NO API KEY NEEDED!)
-# Step 3: Sign locally and submit to Jito
+# Step 3: Sign locally and submit to Jito with tip
 PUMPFUN_IPFS_API = "https://pump.fun/api/ipfs"  # Metadata upload
 PUMPPORTAL_API = "https://pumpportal.fun/api"
 PUMPPORTAL_TRADE_LOCAL = f"{PUMPPORTAL_API}/trade-local"  # Bundle generation (no auth)
 PUMPFUN_TRADE_API = f"{PUMPPORTAL_API}/trade"  # For buy/sell (used by buy_tokens/sell_tokens)
-JITO_BUNDLE_API = "https://mainnet.block-engine.jito.wtf/api/v1/bundles"  # Bundle submission
+
+# Jito Block Engine URLs (use all regions for better success rate)
+JITO_BLOCK_ENGINES = [
+    "https://mainnet.block-engine.jito.wtf",
+    "https://amsterdam.mainnet.block-engine.jito.wtf",
+    "https://frankfurt.mainnet.block-engine.jito.wtf",
+    "https://ny.mainnet.block-engine.jito.wtf",
+    "https://tokyo.mainnet.block-engine.jito.wtf"
+]
+
+# Jito tip accounts (send SOL to these to tip validators)
+JITO_TIP_ACCOUNTS = [
+    "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
+    "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
+    "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
+    "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
+    "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
+    "ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt",
+    "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
+    "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT"
+]
 
 class PumpFunReal:
     """Real Pump.fun integration for token creation and trading."""
@@ -260,56 +280,164 @@ class PumpFunReal:
                     print(f"[ERROR] Failed to sign transaction {index}: {sign_err}")
                     return None
             
-            # STEP 6: Submit transactions directly to RPC (more reliable than Jito for testing)
-            print(f"[STEP 6] Submitting transactions to RPC...")
-            print(f"[INFO] Using direct RPC submission (more reliable than Jito bundles)")
+            # STEP 6: Create Jito tip transaction
+            print(f"[STEP 6] Creating Jito tip transaction...")
             
-            from solana.rpc.async_api import AsyncClient
-            rpc_client = AsyncClient(self.rpc_url)
+            import random
+            try:
+                from solders.system_program import TransferParams, transfer as system_transfer
+                from solders.message import Message
+                from solders.transaction import VersionedTransaction as SoldersVersionedTransaction
+                from solders.pubkey import Pubkey
+                USE_SOLDERS = True
+            except ImportError:
+                from solana.system_program import TransferParams, transfer as system_transfer
+                from solana.transaction import Transaction as LegacyTransaction
+                from solana.publickey import PublicKey as Pubkey
+                USE_SOLDERS = False
             
-            confirmed_count = 0
-            for i, (encoded_signed, signature) in enumerate(zip(encoded_signed_transactions, tx_signatures)):
-                try:
-                    action = bundled_tx_args[i]['action']
-                    print(f"[TX {i}] Sending {action.upper()} transaction...")
-                    
-                    # Decode the base58 signed transaction
-                    tx_bytes = base58.b58decode(encoded_signed)
-                    
-                    # Send raw transaction
-                    result = await rpc_client.send_raw_transaction(
-                        tx_bytes,
-                        opts={"skipPreflight": False, "maxRetries": 3}
-                    )
-                    
-                    if result.value:
-                        actual_sig = str(result.value)
-                        print(f"[OK] TX {i} confirmed: {actual_sig[:16]}...")
-                        print(f"[LINK] https://solscan.io/tx/{actual_sig}")
-                        confirmed_count += 1
-                        
-                        # Wait between transactions for sequential processing
-                        if i < len(encoded_signed_transactions) - 1:
-                            await asyncio.sleep(1)
-                    else:
-                        print(f"[ERROR] TX {i} failed to send")
-                        
-                except Exception as tx_err:
-                    print(f"[ERROR] TX {i} error: {tx_err}")
-                    # Continue trying other transactions
+            # Jito tip amount (0.0001 SOL = 100k lamports for creation, adjustable)
+            jito_tip_lamports = 100_000  # ~$0.02 at current prices
+            print(f"[INFO] Jito tip: {jito_tip_lamports / 1e9:.6f} SOL (~$0.02)")
             
-            print(f"\n[RESULT] {confirmed_count}/{len(encoded_signed_transactions)} transactions confirmed")
+            # Pick random Jito tip account
+            tip_account = random.choice(JITO_TIP_ACCOUNTS)
+            tip_pubkey = Pubkey.from_string(tip_account)
             
-            if confirmed_count > 0:
-                print(f"[OK] Token creation initiated!")
-                print(f"[INFO] Mint: {mint_address}")
-                print(f"[INFO] Wait 30s for transactions to finalize...")
-                await asyncio.sleep(30)
-                return mint_address
+            # Creator pays the tip
+            creator_pubkey = Pubkey.from_string(str(creator_wallet.pubkey() if hasattr(creator_wallet, 'pubkey') else creator_wallet.public_key))
+            
+            # Get recent blockhash
+            blockhash_response = await self.client.get_latest_blockhash()
+            recent_blockhash = blockhash_response.value.blockhash
+            
+            # Create tip instruction
+            tip_instruction = system_transfer(
+                TransferParams(
+                    from_pubkey=creator_pubkey,
+                    to_pubkey=tip_pubkey,
+                    lamports=jito_tip_lamports
+                )
+            )
+            
+            # Build tip transaction
+            if USE_SOLDERS:
+                tip_message = Message.new_with_blockhash(
+                    [tip_instruction],
+                    creator_pubkey,
+                    recent_blockhash
+                )
+                tip_tx = SoldersVersionedTransaction(tip_message, [creator_wallet])
             else:
-                print(f"[ERROR] No transactions confirmed!")
-                print(f"[ERROR] Token creation failed")
-                return None
+                tip_tx = LegacyTransaction()
+                tip_tx.recent_blockhash = recent_blockhash
+                tip_tx.add(tip_instruction)
+                tip_tx.sign(creator_wallet)
+            
+            # Encode tip transaction
+            tip_tx_bytes = bytes(tip_tx)
+            tip_tx_encoded = base58.b58encode(tip_tx_bytes).decode()
+            
+            # Add tip transaction to bundle (must be last)
+            bundle_with_tip = encoded_signed_transactions + [tip_tx_encoded]
+            
+            print(f"[OK] Bundle prepared: {len(encoded_signed_transactions)} txs + 1 tip = {len(bundle_with_tip)} total")
+            
+            # STEP 7: Submit bundle to Jito with retry logic
+            print(f"[STEP 7] Submitting bundle to Jito...")
+            
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                try:
+                    # Try different Jito block engines
+                    jito_url = random.choice(JITO_BLOCK_ENGINES)
+                    bundle_endpoint = f"{jito_url}/api/v1/bundles"
+                    
+                    print(f"[ATTEMPT {attempt + 1}/{max_attempts}] Using {jito_url.split('//')[1].split('.')[0]} region...")
+                    
+                    async with httpx.AsyncClient(timeout=30.0) as http_client:
+                        jito_response = await http_client.post(
+                            bundle_endpoint,
+                            headers={'Content-Type': 'application/json'},
+                            json={
+                                'jsonrpc': '2.0',
+                                'id': 1,
+                                'method': 'sendBundle',
+                                'params': [bundle_with_tip]
+                            }
+                        )
+                        
+                        print(f"[API] Response status: {jito_response.status_code}")
+                        
+                        if jito_response.status_code == 200:
+                            jito_result = jito_response.json()
+                            
+                            # Check for error in response
+                            if 'error' in jito_result:
+                                error_msg = jito_result['error'].get('message', str(jito_result['error']))
+                                print(f"[ERROR] Jito error: {error_msg}")
+                                if attempt < max_attempts - 1:
+                                    print(f"[RETRY] Waiting 2s before retry...")
+                                    await asyncio.sleep(2)
+                                    continue
+                                else:
+                                    return None
+                            
+                            bundle_id = jito_result.get('result')
+                            print(f"[OK] Bundle submitted to Jito!")
+                            print(f"[INFO] Bundle ID: {bundle_id}")
+                            print(f"[INFO] Tip: {jito_tip_lamports / 1e9:.6f} SOL to {tip_account[:8]}...")
+                            
+                            # Print transaction links
+                            for i, signature in enumerate(tx_signatures):
+                                action = bundled_tx_args[i]['action']
+                                print(f"[TX {i}] {action.upper()}: https://solscan.io/tx/{signature}")
+                            
+                            # Wait for bundle to land (Jito bundles usually land within 5-10s)
+                            print(f"[INFO] Waiting 15s for bundle to land on-chain...")
+                            await asyncio.sleep(15)
+                            
+                            # Verify first transaction (create) landed
+                            print(f"[VERIFY] Checking if bundle landed...")
+                            try:
+                                sig_status = await self.client.get_signature_statuses([tx_signatures[0]])
+                                if sig_status.value and sig_status.value[0]:
+                                    print(f"[OK] Bundle landed on-chain!")
+                                    print(f"[OK] Token created successfully!")
+                                    return mint_address
+                                else:
+                                    print(f"[WARNING] Bundle may not have landed yet...")
+                                    if attempt < max_attempts - 1:
+                                        print(f"[RETRY] Will try again...")
+                                        await asyncio.sleep(3)
+                                        continue
+                                    else:
+                                        print(f"[WARNING] Returning mint anyway (check Solscan manually)")
+                                        return mint_address
+                            except Exception as verify_err:
+                                print(f"[WARNING] Could not verify: {verify_err}")
+                                return mint_address
+                        else:
+                            print(f"[ERROR] Jito HTTP error: {jito_response.status_code}")
+                            print(f"[ERROR] Response: {jito_response.text}")
+                            if attempt < max_attempts - 1:
+                                await asyncio.sleep(2)
+                                continue
+                            else:
+                                return None
+                                
+                except Exception as jito_err:
+                    print(f"[ERROR] Jito submission error: {jito_err}")
+                    if attempt < max_attempts - 1:
+                        print(f"[RETRY] Waiting 2s before retry...")
+                        await asyncio.sleep(2)
+                        continue
+                    else:
+                        print(f"[ERROR] All Jito attempts failed")
+                        return None
+            
+            print(f"[ERROR] Failed to submit bundle after {max_attempts} attempts")
+            return None
                     
         except Exception as e:
             print(f"[ERROR] Bundled token creation failed: {e}")
