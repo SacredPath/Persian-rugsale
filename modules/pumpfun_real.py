@@ -234,6 +234,289 @@ class PumpFunReal:
             print(f"[WARNING] Leader check failed: {e} - proceeding anyway")
             return True
         
+    async def _create_token_sequential(
+        self,
+        wallets: list,
+        name: str,
+        symbol: str,
+        description: str,
+        image_url: str,
+        twitter: Optional[str] = None,
+        telegram: Optional[str] = None,
+        website: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Create token on Pump.fun with SEQUENTIAL buys (no Jito bundles).
+        More reliable during network congestion but slower.
+        
+        Process:
+        1. Upload metadata to IPFS
+        2. Create token (single TX via PumpPortal)
+        3. Submit buy transactions one by one
+        4. Wait for each to confirm before proceeding
+        """
+        try:
+            import base58
+            try:
+                from solders.transaction import VersionedTransaction
+                from solders.rpc.config import TxOpts
+                from solders.commitment_config import CommitmentLevel
+                USE_SOLDERS = True
+            except ImportError:
+                from solana.transaction import VersionedTransaction
+                from solana.rpc.types import TxOpts
+                from solana.rpc.commitment import Confirmed
+                USE_SOLDERS = False
+            
+            print(f"[SEQUENTIAL] Creating token: {name} ({symbol})")
+            print(f"[INFO] Mode: Direct RPC (no Jito bundles)")
+            print(f"[INFO] Wallets: {len(wallets)} (1 creator + {len(wallets)-1} sequential buyers)")
+            
+            if not wallets or len(wallets) < 1:
+                print(f"[ERROR] Need at least 1 wallet")
+                return None
+            
+            creator_wallet = wallets[0]
+            
+            # Fix Imgur links
+            processed_image_url = image_url
+            if 'imgur.com' in image_url and not image_url.startswith('https://i.imgur.com'):
+                image_id = image_url.split('/')[-1].split('.')[0]
+                processed_image_url = f"https://i.imgur.com/{image_id}.png"
+                print(f"[FIX] Converted Imgur link: {processed_image_url}")
+            
+            # STEP 1: Upload metadata to IPFS
+            print(f"[STEP 1/3] Uploading metadata to Pump.fun IPFS...")
+            
+            form_data = {
+                'name': name,
+                'symbol': symbol,
+                'description': description,
+                'showName': 'true'
+            }
+            
+            if twitter:
+                form_data['twitter'] = twitter
+            if telegram:
+                form_data['telegram'] = telegram
+            if website:
+                form_data['website'] = website
+            
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                print(f"[INFO] Downloading image: {processed_image_url}")
+                img_response = await http_client.get(processed_image_url)
+                if img_response.status_code != 200:
+                    print(f"[ERROR] Failed to download image: {img_response.status_code}")
+                    return None
+                
+                image_bytes = img_response.content
+                image_filename = processed_image_url.split('/')[-1]
+                if '.' not in image_filename:
+                    image_filename += '.png'
+                
+                files = {'file': (image_filename, image_bytes, 'image/png')}
+                
+                print(f"[API] POST {PUMPFUN_IPFS_API}")
+                ipfs_response = await http_client.post(
+                    PUMPFUN_IPFS_API,
+                    data=form_data,
+                    files=files
+                )
+                
+                print(f"[API] Response status: {ipfs_response.status_code}")
+                
+                if ipfs_response.status_code != 200:
+                    print(f"[ERROR] IPFS upload failed")
+                    print(f"[ERROR] Response: {ipfs_response.text}")
+                    return None
+                
+                ipfs_result = ipfs_response.json()
+                metadata_uri = ipfs_result.get('metadataUri')
+                
+                if not metadata_uri:
+                    print(f"[ERROR] No metadata URI in response")
+                    return None
+                
+                print(f"[OK] Metadata uploaded!")
+                print(f"   URI: {metadata_uri}")
+            
+            # STEP 2: Generate mint keypair and create token
+            print(f"[STEP 2/3] Creating token on Pump.fun...")
+            
+            try:
+                from solders.keypair import Keypair as SoldersKeypair
+                mint_keypair = SoldersKeypair()
+                mint_address = str(mint_keypair.pubkey())
+            except ImportError:
+                from solana.keypair import Keypair as LegacyKeypair
+                mint_keypair = LegacyKeypair.generate()
+                mint_address = str(mint_keypair.public_key)
+            
+            print(f"[INFO] Mint address: {mint_address}")
+            
+            # Get creator pubkey
+            try:
+                creator_pubkey = str(creator_wallet.pubkey())
+            except AttributeError:
+                creator_pubkey = str(creator_wallet.public_key)
+            
+            # Build CREATE-only transaction via PumpPortal
+            from config import BUNDLE_SOL
+            
+            create_tx_args = [{
+                'publicKey': creator_pubkey,
+                'action': 'create',
+                'tokenMetadata': {
+                    'name': name,
+                    'symbol': symbol,
+                    'uri': metadata_uri
+                },
+                'mint': mint_address,
+                'denominatedInSol': 'true',
+                'amount': BUNDLE_SOL,  # Initial dev buy
+                'slippage': 10,
+                'priorityFee': 0.0005,
+                'pool': 'pump'
+            }]
+            
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                print(f"[API] POST {PUMPPORTAL_TRADE_LOCAL} (create only)")
+                trade_response = await http_client.post(
+                    PUMPPORTAL_TRADE_LOCAL,
+                    headers={'Content-Type': 'application/json'},
+                    json=create_tx_args
+                )
+                
+                print(f"[API] Response status: {trade_response.status_code}")
+                
+                if trade_response.status_code != 200:
+                    print(f"[ERROR] Failed to generate create transaction")
+                    print(f"[ERROR] Response: {trade_response.text}")
+                    return None
+                
+                encoded_transactions = trade_response.json()
+                print(f"[OK] Generated {len(encoded_transactions)} transaction(s)")
+            
+            # Sign and submit CREATE transaction
+            create_tx_base58 = encoded_transactions[0]
+            tx_bytes = base58.b58decode(create_tx_base58)
+            versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
+            versioned_tx.sign([mint_keypair, creator_wallet])
+            
+            print(f"[INFO] Submitting CREATE transaction via direct RPC...")
+            
+            if USE_SOLDERS:
+                tx_opts = TxOpts(
+                    skip_preflight=False,
+                    preflight_commitment=CommitmentLevel.Confirmed
+                )
+            else:
+                tx_opts = TxOpts(
+                    skip_preflight=False,
+                    preflight_commitment=Confirmed
+                )
+            
+            send_result = await self.client.send_raw_transaction(
+                bytes(versioned_tx),
+                opts=tx_opts
+            )
+            
+            if not send_result.value:
+                print(f"[ERROR] CREATE transaction failed")
+                return None
+            
+            create_signature = str(send_result.value)
+            print(f"[OK] CREATE TX: https://solscan.io/tx/{create_signature}")
+            
+            # Wait for CREATE to confirm
+            print(f"[INFO] Waiting for CREATE to confirm...")
+            await asyncio.sleep(5)
+            
+            # Verify token was created
+            try:
+                from solders.pubkey import Pubkey as SoldersPubkey
+                mint_pubkey = SoldersPubkey.from_string(mint_address)
+            except ImportError:
+                from solana.publickey import PublicKey
+                mint_pubkey = PublicKey(mint_address)
+            
+            account_info = await self.client.get_account_info(mint_pubkey)
+            if account_info.value:
+                print(f"[OK] Token verified on-chain!")
+            else:
+                print(f"[WARNING] Token not yet visible, but proceeding...")
+            
+            # STEP 3: Sequential buys
+            if len(wallets) > 1:
+                print(f"[STEP 3/3] Executing {len(wallets)-1} sequential buys...")
+                
+                for i, wallet in enumerate(wallets[1:], start=1):
+                    print(f"\n[BUY {i}/{len(wallets)-1}] Processing...")
+                    
+                    try:
+                        buyer_pubkey = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
+                    except AttributeError:
+                        buyer_pubkey = str(wallet.public_key)
+                    
+                    # Generate buy transaction
+                    buy_tx_args = [{
+                        'publicKey': buyer_pubkey,
+                        'action': 'buy',
+                        'mint': mint_address,
+                        'denominatedInSol': 'true',
+                        'amount': BUNDLE_SOL,
+                        'slippage': 15,
+                        'priorityFee': 0.0005,
+                        'pool': 'pump'
+                    }]
+                    
+                    try:
+                        async with httpx.AsyncClient(timeout=30.0) as http_client:
+                            buy_response = await http_client.post(
+                                PUMPPORTAL_TRADE_LOCAL,
+                                headers={'Content-Type': 'application/json'},
+                                json=buy_tx_args
+                            )
+                            
+                            if buy_response.status_code != 200:
+                                print(f"[ERROR] Buy {i} failed: {buy_response.status_code}")
+                                continue
+                            
+                            buy_encoded_txs = buy_response.json()
+                            buy_tx_base58 = buy_encoded_txs[0]
+                            buy_tx_bytes = base58.b58decode(buy_tx_base58)
+                            buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
+                            buy_versioned_tx.sign([wallet])
+                            
+                            buy_send_result = await self.client.send_raw_transaction(
+                                bytes(buy_versioned_tx),
+                                opts=tx_opts
+                            )
+                            
+                            if buy_send_result.value:
+                                buy_signature = str(buy_send_result.value)
+                                print(f"[OK] BUY {i} TX: https://solscan.io/tx/{buy_signature}")
+                                # Small delay between buys
+                                await asyncio.sleep(3)
+                            else:
+                                print(f"[WARNING] Buy {i} transaction rejected")
+                                
+                    except Exception as buy_err:
+                        print(f"[ERROR] Buy {i} failed: {buy_err}")
+                        continue
+            
+            print(f"\n[OK] Token creation complete!")
+            print(f"[INFO] Mint: {mint_address}")
+            print(f"[INFO] Mode: Sequential (non-atomic)")
+            
+            return mint_address
+            
+        except Exception as e:
+            print(f"[ERROR] Sequential token creation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
     @retry_async(max_attempts=3, delay=1.0)
     async def create_token_bundled(
         self,
@@ -295,9 +578,17 @@ class PumpFunReal:
             if not jito_enabled:
                 print(f"[INFO] Jito bundles DISABLED - using sequential direct RPC submission")
                 print(f"[INFO] This is more reliable during network congestion")
-                # TODO: Implement direct RPC fallback (for now, will use Jito anyway with warning)
-                print(f"[WARNING] Direct RPC mode not yet fully implemented - proceeding with Jito")
-                # Fall through to Jito logic for now
+                # Use sequential mode (create first, then buy one by one)
+                return await self._create_token_sequential(
+                    wallets=wallets,
+                    name=name,
+                    symbol=symbol,
+                    description=description,
+                    image_url=image_url,
+                    twitter=twitter,
+                    telegram=telegram,
+                    website=website
+                )
             
             if not wallets or len(wallets) < 1:
                 print(f"[ERROR] Need at least 1 wallet (creator)")
