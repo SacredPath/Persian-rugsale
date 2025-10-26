@@ -46,17 +46,17 @@ def handle_start(message):
     try:
         markup = types.InlineKeyboardMarkup()
         markup.row(
-            types.InlineKeyboardButton("Launch Token", callback_data="launch_start")
+            types.InlineKeyboardButton("🚀 Launch Token", callback_data="launch_start")
         )
         markup.row(
-            types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
-            types.InlineKeyboardButton("Status", callback_data="status")
+            types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
+            types.InlineKeyboardButton("📊 Status", callback_data="status")
         )
         
         # Add Collect Profits button if MAIN_WALLET is configured
         if MAIN_WALLET and collector.enabled:
             markup.row(
-                types.InlineKeyboardButton("Collect Profits", callback_data="collect_profits")
+                types.InlineKeyboardButton("💸 Collect Profits", callback_data="collect_profits")
             )
         
         welcome_text = (
@@ -123,12 +123,12 @@ def handle_launch(message):
                 # Create action buttons (use short callbacks, mint stored in active_token)
                 markup = types.InlineKeyboardMarkup()
                 markup.row(
-                    types.InlineKeyboardButton("Monitor", callback_data="monitor_active"),
-                    types.InlineKeyboardButton("Rug Now", callback_data="rug_active")
+                    types.InlineKeyboardButton("👀 Monitor", callback_data="monitor_active"),
+                    types.InlineKeyboardButton("💣 Rug Now", callback_data="rug_active")
                 )
                 markup.row(
-                    types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
-                    types.InlineKeyboardButton("Status", callback_data="status")
+                    types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
+                    types.InlineKeyboardButton("📊 Status", callback_data="status")
                 )
                 
                 success_text = (
@@ -396,8 +396,8 @@ def handle_wizard_input(message):
         # Show preview and confirmation
         markup = types.InlineKeyboardMarkup()
         markup.row(
-            types.InlineKeyboardButton("Launch Now", callback_data="launch_confirm"),
-            types.InlineKeyboardButton("Cancel", callback_data="launch_cancel")
+            types.InlineKeyboardButton("✅ Launch Now", callback_data="launch_confirm"),
+            types.InlineKeyboardButton("❌ Cancel", callback_data="launch_cancel")
         )
         
         preview_text = (
@@ -479,12 +479,12 @@ def handle_callback(call):
                     # Create action buttons (use short callbacks)
                     markup = types.InlineKeyboardMarkup()
                     markup.row(
-                        types.InlineKeyboardButton("Monitor", callback_data="monitor_active"),
-                        types.InlineKeyboardButton("Rug Now", callback_data="rug_active")
+                        types.InlineKeyboardButton("👀 Monitor", callback_data="monitor_active"),
+                        types.InlineKeyboardButton("💣 Rug Now", callback_data="rug_active")
                     )
                     markup.row(
-                        types.InlineKeyboardButton("Check Wallets", callback_data="wallets"),
-                        types.InlineKeyboardButton("Status", callback_data="status")
+                        types.InlineKeyboardButton("💰 Check Wallets", callback_data="wallets"),
+                        types.InlineKeyboardButton("📊 Status", callback_data="status")
                     )
                     
                     success_text = (
@@ -567,8 +567,8 @@ def handle_callback(call):
             # Confirmation markup
             confirm_markup = types.InlineKeyboardMarkup()
             confirm_markup.row(
-                types.InlineKeyboardButton("CONFIRM RUG", callback_data="rug_confirm_active"),
-                types.InlineKeyboardButton("Cancel", callback_data="cancel")
+                types.InlineKeyboardButton("💥 CONFIRM RUG", callback_data="rug_confirm_active"),
+                types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
             )
             
             bot.send_message(
@@ -620,8 +620,8 @@ def handle_callback(call):
             # Show confirmation
             confirm_markup = types.InlineKeyboardMarkup()
             confirm_markup.row(
-                types.InlineKeyboardButton("CONFIRM COLLECT", callback_data="collect_confirm"),
-                types.InlineKeyboardButton("Cancel", callback_data="cancel")
+                types.InlineKeyboardButton("✅ CONFIRM COLLECT", callback_data="collect_confirm"),
+                types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
             )
             
             bot.send_message(

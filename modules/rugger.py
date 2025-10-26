@@ -90,7 +90,7 @@ class RugExecutor:
             print(f"[STEP 1] Checking wallet balances...")
             sell_transactions = []
             
-            for wallet in self.wallets[:20]:
+            for i, wallet in enumerate(self.wallets[:20]):
                 try:
                     wallet_addr = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
                     balance = get_token_balance_simple(wallet_addr, mint, self.rpc_url)
@@ -105,7 +105,7 @@ class RugExecutor:
                         mode_tag = " (50%)" if partial else ""
                         print(f"   [OK] {wallet_addr[:8]}: {sell_amount:,.0f} tokens{mode_tag}")
                 except Exception as e:
-                    print(f"   [ERROR] {wallet_addr[:8]}: {e}")
+                    print(f"   [ERROR] Wallet {i}: {e}")
             
             if not sell_transactions:
                 print(f"[ERROR] No tokens found in any wallet")
@@ -368,7 +368,7 @@ class RugExecutor:
             success_count = 0
             total_sol_received = 0.0
             
-            for wallet in self.wallets[:20]:
+            for i, wallet in enumerate(self.wallets[:20]):
                 try:
                     wallet_addr = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
                     balance = get_token_balance_simple(wallet_addr, mint, self.rpc_url)
@@ -397,7 +397,7 @@ class RugExecutor:
                                 await asyncio.sleep(1.0)
                 
                 except Exception as e:
-                    print(f"   [ERROR] {wallet_addr[:8]}: {e}")
+                    print(f"   [ERROR] Wallet {i}: {e}")
             
             print(f"[OK] Graduated rug complete: {success_count} sells")
             return success_count > 0

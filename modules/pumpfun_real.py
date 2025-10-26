@@ -19,7 +19,8 @@ from .retry_utils import retry_async
 # Step 1: Upload metadata to pump.fun
 # Step 2: Generate bundled transactions via /trade-local (NO API KEY NEEDED!)
 # Step 3: Sign locally and submit to Jito with tip
-PUMPFUN_IPFS_API = "https://pump.fun/api/ipfs"  # Metadata upload
+PUMPFUN_API = "https://pump.fun/api"  # Base Pump.fun API
+PUMPFUN_IPFS_API = f"{PUMPFUN_API}/ipfs"  # Metadata upload
 PUMPPORTAL_API = "https://pumpportal.fun/api"
 PUMPPORTAL_TRADE_LOCAL = f"{PUMPPORTAL_API}/trade-local"  # Bundle generation (no auth)
 PUMPFUN_TRADE_API = f"{PUMPPORTAL_API}/trade"  # For buy/sell (used by buy_tokens/sell_tokens)
