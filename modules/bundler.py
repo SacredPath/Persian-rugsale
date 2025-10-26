@@ -40,14 +40,14 @@ class RugBundler:
             print(f"[LAUNCH] Creating REAL Pump.fun token with BUNDLED buys...")
             print(f"[INFO] This will create token + do initial buys ATOMICALLY via Jito!")
             
-            # Use first 4 wallets for bundled creation (1 creator + 3 buyers = 4 txs)
-            # PumpPortal allows max 5 transactions in a bundle
-            wallets_for_bundle = self.wallets[:4]  # Use 4 wallets total
+            # Use first 3 wallets for bundled creation (1 creator + 2 buyers = 3 txs)
+            # REDUCED from 4 to 3 for safer bundle size (3 txs + 1 tip = 4 total, well under 5 max)
+            wallets_for_bundle = self.wallets[:3]  # Use 3 wallets total
             
             print(f"[INFO] Bundle composition:")
             print(f"   - Wallet 0: Create + buy {1000000} tokens")
-            print(f"   - Wallet 1-3: Buy {1000000} tokens each")
-            print(f"   - Total: 4 transactions in atomic bundle")
+            print(f"   - Wallet 1-2: Buy {1000000} tokens each")
+            print(f"   - Total: 3 transactions in atomic bundle (safer margin)")
             
             # Create token with bundled buys (NO API KEY NEEDED!)
             mint = await self.pumpfun.create_token_bundled(

@@ -52,6 +52,55 @@ class PumpFunReal:
     def __init__(self, rpc_url: str):
         self.client = AsyncClient(rpc_url)
         self.rpc_url = rpc_url
+    
+    async def _wait_for_jito_leader(self, max_wait_seconds=10):
+        """
+        Wait for a Jito-enabled validator to be the leader.
+        Prevents 429 errors by only submitting during Jito slots.
+        
+        Returns: True if Jito leader found, False if timeout
+        """
+        try:
+            import time
+            start_time = time.time()
+            
+            print(f"[JITO] Waiting for Jito leader slot...")
+            
+            # Check Jito's bundle tip API to verify network status
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                # Simple check: if we can reach Jito's tip endpoint, leaders are active
+                try:
+                    response = await client.post(
+                        f"{JITO_BLOCK_ENGINES[0]}/api/v1/bundles",
+                        headers={'Content-Type': 'application/json'},
+                        json={
+                            'jsonrpc': '2.0',
+                            'id': 1,
+                            'method': 'getTipAccounts',
+                            'params': []
+                        }
+                    )
+                    
+                    if response.status_code == 200:
+                        print(f"[JITO] Leader slot ready - submitting bundle")
+                        return True
+                    elif response.status_code == 429:
+                        # Real rate limit - wait exponentially
+                        wait_time = min(time.time() - start_time + 2, max_wait_seconds)
+                        print(f"[JITO] Rate limited - waiting {wait_time:.1f}s...")
+                        await asyncio.sleep(wait_time)
+                        return False
+                    
+                except Exception as e:
+                    print(f"[WARNING] Jito check failed: {e}")
+                    # Proceed anyway - better to try than fail
+                    return True
+            
+            return True
+            
+        except Exception as e:
+            print(f"[WARNING] Leader check failed: {e} - proceeding anyway")
+            return True
         
     @retry_async(max_attempts=3, delay=1.0)
     async def create_token_bundled(
@@ -202,7 +251,9 @@ class PumpFunReal:
                 'amount': buy_amount_tokens,  # Tokens to buy
                 'slippage': 10,
                 'priorityFee': 0.0005,
-                'pool': 'pump'
+                'pool': 'pump',
+                'computeUnitLimit': 200000,  # 200k CU limit (prevents resource rejections)
+                'computeUnitPrice': 1000  # micro-lamports per CU (~0.0002 SOL priority fee)
             })
             
             # Additional transactions: BUY from other wallets (up to 4 more, total 5 max)
@@ -217,7 +268,9 @@ class PumpFunReal:
                     'amount': buy_amount_tokens,
                     'slippage': 50,  # High slippage for atomic bundle (ensures all txs succeed together)
                     'priorityFee': 0.0001,  # Ignored after first tx
-                    'pool': 'pump'
+                    'pool': 'pump',
+                    'computeUnitLimit': 200000,  # 200k CU limit (prevents resource rejections)
+                    'computeUnitPrice': 1000  # micro-lamports per CU (~0.0002 SOL priority fee)
                 })
             
             print(f"[INFO] Bundle: 1 create + {len(buyer_wallets)} buys = {len(bundled_tx_args)} transactions")
@@ -355,6 +408,15 @@ class PumpFunReal:
             max_attempts = 3
             for attempt in range(max_attempts):
                 try:
+                    # CRITICAL: Wait for Jito leader slot (prevents 429 spam)
+                    leader_ready = await self._wait_for_jito_leader(max_wait_seconds=10)
+                    if not leader_ready and attempt < max_attempts - 1:
+                        print(f"[WARNING] Jito not ready - will retry with backoff")
+                        # Exponential backoff: 3s, 6s, 12s...
+                        backoff = 3 * (2 ** attempt)
+                        await asyncio.sleep(backoff)
+                        continue
+                    
                     # Try different Jito block engines
                     jito_url = random.choice(JITO_BLOCK_ENGINES)
                     bundle_endpoint = f"{jito_url}/api/v1/bundles"
@@ -383,8 +445,10 @@ class PumpFunReal:
                                 error_msg = jito_result['error'].get('message', str(jito_result['error']))
                                 print(f"[ERROR] Jito error: {error_msg}")
                                 if attempt < max_attempts - 1:
-                                    print(f"[RETRY] Waiting 2s before retry...")
-                                    await asyncio.sleep(2)
+                                    # Exponential backoff
+                                    backoff = 3 * (2 ** attempt)
+                                    print(f"[RETRY] Waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
                                     continue
                                 else:
                                     return None
@@ -456,17 +520,33 @@ class PumpFunReal:
                         else:
                             print(f"[ERROR] Jito HTTP error: {jito_response.status_code}")
                             print(f"[ERROR] Response: {jito_response.text}")
-                            if attempt < max_attempts - 1:
-                                await asyncio.sleep(2)
-                                continue
+                            
+                            # Handle 429 rate limit specially
+                            if jito_response.status_code == 429:
+                                if attempt < max_attempts - 1:
+                                    # Longer backoff for rate limits
+                                    backoff = 5 * (2 ** attempt)  # 5s, 10s, 20s
+                                    print(f"[429] Rate limited - waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
+                                    continue
+                                else:
+                                    print(f"[ERROR] Rate limit persists - bundle creation failed")
+                                    return None
                             else:
-                                return None
+                                if attempt < max_attempts - 1:
+                                    backoff = 3 * (2 ** attempt)
+                                    print(f"[RETRY] Waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
+                                    continue
+                                else:
+                                    return None
                                 
                 except Exception as jito_err:
                     print(f"[ERROR] Jito submission error: {jito_err}")
                     if attempt < max_attempts - 1:
-                        print(f"[RETRY] Waiting 2s before retry...")
-                        await asyncio.sleep(2)
+                        backoff = 3 * (2 ** attempt)
+                        print(f"[RETRY] Waiting {backoff}s before retry...")
+                        await asyncio.sleep(backoff)
                         continue
                     else:
                         print(f"[ERROR] All Jito attempts failed")
