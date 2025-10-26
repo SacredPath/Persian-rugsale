@@ -259,10 +259,11 @@ class PumpFunReal:
             import base58
             
             try:
-                # Direct imports - no module aliasing to avoid config.py namespace collision
+                # Import with full module alias to completely bypass local config.py
                 from solders.transaction import VersionedTransaction
                 from solders.commitment_config import CommitmentLevel
-                from solders.rpc.config import TxOpts
+                import solders.rpc.config as solders_config
+                TxOpts = solders_config.TxOpts
                 
             except (ImportError, AttributeError, ModuleNotFoundError) as e:
                 print(f"[ERROR] Sequential mode requires 'solders' library")
