@@ -259,9 +259,9 @@ class PumpFunReal:
             import base58
             try:
                 from solders.transaction import VersionedTransaction
-                import solders.rpc.config
+                from solders.rpc import config as solders_rpc_config
                 from solders.commitment_config import CommitmentLevel
-                TxOpts = solders.rpc.config.TxOpts
+                TxOpts = solders_rpc_config.TxOpts
             except (ImportError, AttributeError) as e:
                 print(f"[ERROR] Sequential mode requires 'solders' library")
                 print(f"[ERROR] PumpPortal returns versioned transactions that legacy solana-py cannot sign")
