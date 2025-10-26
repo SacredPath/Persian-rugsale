@@ -1,0 +1,3 @@
+[33m3c682ef[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m CRITICAL FIX: Remove fake token fallback + add on-chain verification - Tokens now MUST be created on Pump.fun or fail properly - Added on-chain verification before proceeding - Deprecated create_simple_token (was generating fake mints) - Added detailed API error logging - Fixes issue where bot reported success but token didn't exist
+[33m6952c97[m Fix: Consistent error handling + dynamic NUM_WALLETS across all handlers
+[33mf3c81cf[m Add comprehensive error handling - no more 'Unknown error' messages

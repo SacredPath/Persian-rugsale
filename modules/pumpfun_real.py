@@ -16,6 +16,9 @@ from solana.transaction import Transaction
 from .retry_utils import retry_async
 
 # Pump.fun API endpoints
+# Note: PumpPortal API may change. Current endpoints as of Oct 2025:
+# - /ipfs: Upload metadata and create token
+# - /trade: Buy/sell existing tokens
 PUMPFUN_API = "https://pumpportal.fun/api"
 PUMPFUN_TRADE_API = f"{PUMPFUN_API}/trade"
 PUMPFUN_IPFS_API = f"{PUMPFUN_API}/ipfs"
@@ -67,12 +70,21 @@ class PumpFunReal:
             except:
                 creator_pubkey = str(creator_wallet.public_key)
             
-            # Step 1: Upload metadata to IPFS (if image is local file)
+            # Step 1: Process image URL
             metadata_uri = image_url
-            if not image_url.startswith('http'):
+            
+            # Fix Imgur links (convert page to direct image)
+            if 'imgur.com' in image_url and not image_url.startswith('https://i.imgur.com'):
+                # Convert imgur.com/XXX to i.imgur.com/XXX.png
+                image_id = image_url.split('/')[-1].split('.')[0]
+                metadata_uri = f"https://i.imgur.com/{image_id}.png"
+                print(f"[FIX] Converted Imgur link: {metadata_uri}")
+            
+            # Upload metadata to IPFS (if image is local file)
+            if not metadata_uri.startswith('http'):
                 print(f"[UPLOAD] Uploading metadata to IPFS...")
                 metadata_uri = await self._upload_metadata(
-                    name, symbol, description, image_url
+                    name, symbol, description, metadata_uri
                 )
                 if not metadata_uri:
                     print(f"[ERROR] Metadata upload failed")
@@ -98,7 +110,8 @@ class PumpFunReal:
                 payload["website"] = website
             
             # Call Pump.fun create API
-            create_endpoint = f"{PUMPFUN_API}/trade-local"  # Updated endpoint for token creation
+            # Note: PumpPortal uses /ipfs for metadata then returns token mint
+            create_endpoint = f"{PUMPFUN_API}/ipfs"
             print(f"[API] Calling: {create_endpoint}")
             print(f"[API] Payload: {payload}")
             
