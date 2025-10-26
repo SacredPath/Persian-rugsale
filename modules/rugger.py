@@ -54,7 +54,9 @@ class RugExecutor:
                 print(f"[WARNING] Token GRADUATED - using Jupiter (sequential, not bundled)")
                 return await self._execute_graduated(mint, partial)
             else:
+                # ALWAYS use Jito bundles for rugs (atomic execution critical for MEV protection)
                 print(f"[INFO] Token on bonding curve - using JITO ATOMIC BUNDLE")
+                print(f"[INFO] Rugs ALWAYS use Jito (atomicity > cost)")
                 return await self._execute_bundled_pumpfun(mint, partial)
                 
         except Exception as e:

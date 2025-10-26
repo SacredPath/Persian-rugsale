@@ -85,12 +85,14 @@ PUMPFUN_TRADE_FEE = 0.01  # SOL - per trade fee estimate
 
 # Jito Bundle Configuration
 USE_JITO_BUNDLES = False  # Toggle: True = atomic bundles, False = sequential direct RPC (more reliable during congestion)
+                          # NOTE: Rugs ALWAYS use Jito bundles regardless of this setting (atomicity critical for MEV protection)
 
-# Jito Bundle Tips (only used if USE_JITO_BUNDLES = True)
+# Jito Bundle Tips
+# Used for: Token creation (if USE_JITO_BUNDLES = True) AND rug execution (ALWAYS)
 # CRITICAL: Must be competitive to WIN leader slot auctions during congestion
 # Oct 26, 2025: 0.025 SOL balanced for <$10 budget (successful rugs confirmed at this level)
-JITO_TIP = 0.025  # SOL (~$4.85) - BALANCED bid (2.5x original, fits budget)
-JITO_TIP_RUG = 0.025  # SOL (~$4.85) - SAME priority for atomic rug execution
+JITO_TIP = 0.025  # SOL (~$4.85) - For token creation bundles (if enabled)
+JITO_TIP_RUG = 0.025  # SOL (~$4.85) - For rug execution (ALWAYS used, atomicity critical)
 
 # Phase 3: Probe Mode (minimal-cost mainnet testing)
 PROBE_MODE = os.getenv("PROBE_MODE", "false").lower() == "true"
