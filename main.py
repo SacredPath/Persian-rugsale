@@ -558,17 +558,17 @@ def handle_callback(call):
             is_monitoring = mint in status['active_tokens']
             
             if is_monitoring:
-                # Calculate uptime
-                import time
-                start_time = monitor.monitoring[mint]['start_time']
-                uptime_seconds = int(time.time() - start_time)
+                # Get per-token details
+                token_details = status.get('token_details', {}).get(mint, {})
+                token_wash_count = token_details.get('wash_count', 0)
+                uptime_seconds = token_details.get('uptime', 0)
                 uptime_minutes = uptime_seconds // 60
                 
                 status_text = (
                     f"[MONITOR] Status for {mint[:16]}...\n\n"
                     f"Status: ACTIVE\n"
                     f"Uptime: {uptime_minutes} minutes\n"
-                    f"Wash trades: {status['wash_count']}\n"
+                    f"Wash trades: {token_wash_count}\n"
                     f"Target MC: ${RUG_THRESHOLD_MC:,.0f}\n\n"
                     f"Bot will auto-rug when target is reached."
                 )
@@ -876,11 +876,31 @@ def handle_status_check(chat_id):
         from modules.error_handler import format_error, log_error
         
         status = monitor.get_status()
-        status_text = (
-            f"BOT STATUS\n\n"
-            f"Active tokens: {len(status['active_tokens'])}\n"
-            f"Wash trades: {status['wash_count']}"
-        )
+        active_count = len(status['active_tokens'])
+        
+        if active_count == 0:
+            status_text = (
+                f"BOT STATUS\n\n"
+                f"Active tokens: 0\n"
+                f"Total wash trades: {status['wash_count']}\n\n"
+                f"Launch a token to start monitoring!"
+            )
+        else:
+            status_text = (
+                f"BOT STATUS\n\n"
+                f"Active tokens: {active_count}\n"
+                f"Total wash trades: {status['wash_count']}\n\n"
+            )
+            
+            # Add per-token details
+            token_details = status.get('token_details', {})
+            if token_details:
+                status_text += "PER-TOKEN STATUS:\n"
+                for mint, details in token_details.items():
+                    wash_count = details.get('wash_count', 0)
+                    uptime_min = details.get('uptime', 0) // 60
+                    status_text += f"  {mint[:16]}... ({uptime_min}m, {wash_count} washes)\n"
+        
         bot.send_message(chat_id, status_text)
     except Exception as e:
         # Log detailed error to console

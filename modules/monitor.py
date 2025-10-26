@@ -18,7 +18,7 @@ class HypeMonitor:
         # Load existing wallets or generate new ones
         self.wallets = load_wallets() or generate_wallets(NUM_WALLETS)
         self.wash_count = 0
-        self.monitoring = {}
+        self.monitoring = {}  # CRITICAL: Initialize monitoring dictionary
 
     async def start(self, mint, chat_id):
         """Simple monitoring loop."""
@@ -27,7 +27,11 @@ class HypeMonitor:
             self.client = AsyncClient(self.rpc_url)
             
             print(f"Monitoring {mint}")
-            self.monitoring[mint] = {"chat_id": chat_id, "start_time": time.time()}
+            self.monitoring[mint] = {
+                "chat_id": chat_id, 
+                "start_time": time.time(),
+                "wash_count": 0  # Per-token wash trade count
+            }
             
             while True:
                 # Check market cap
@@ -42,7 +46,9 @@ class HypeMonitor:
                 
                 # Simple wash trade
                 await self._wash_trade(mint)
-                self.wash_count += 1
+                # Increment per-token wash count
+                if mint in self.monitoring:
+                    self.monitoring[mint]["wash_count"] += 1
                 
                 await asyncio.sleep(WASH_INTERVAL)
                 
@@ -113,5 +119,12 @@ class HypeMonitor:
         """Get monitoring status."""
         return {
             "active_tokens": list(self.monitoring.keys()),
-            "wash_count": self.wash_count
+            "wash_count": self.wash_count,  # Global wash count (all tokens)
+            "token_details": {
+                mint: {
+                    "wash_count": data.get("wash_count", 0),
+                    "uptime": int(time.time() - data.get("start_time", time.time()))
+                }
+                for mint, data in self.monitoring.items()
+            }
         }
