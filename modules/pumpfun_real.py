@@ -212,7 +212,7 @@ class PumpFunReal:
                     'mint': mint_address,
                     'denominatedInSol': 'false',
                     'amount': buy_amount_tokens,
-                    'slippage': 50,
+                    'slippage': 50,  # High slippage for atomic bundle (ensures all txs succeed together)
                     'priorityFee': 0.0001,  # Ignored after first tx
                     'pool': 'pump'
                 })

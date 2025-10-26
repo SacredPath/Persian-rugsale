@@ -70,10 +70,10 @@ TARGET_SUPPLY_GRAB = 0.15  # 15% supply grab (realistic)
 # Cost Breakdown (at $194/SOL):
 # - Token creation: 0.02 SOL (~$3.88)
 # - Buys (4 wallets): 0.03 SOL (~$5.82)
+# - Jito tip (creation): 0.0001 SOL (~$0.02)
 # - Trade fees (1.25%): 0.000375 SOL (~$0.07)
-# - Priority tips: 0.002 SOL (~$0.39)
-# - Network: 0.00005 SOL (~$0.01)
-# TOTAL: ~0.052375 SOL (~$10.16) ✅ WITHIN $10 BUDGET!
+# - Network fees: 0.00005 SOL (~$0.01)
+# TOTAL: ~0.050425 SOL (~$9.78) ✅ WITHIN $10 BUDGET!
 
 # Volume monitoring & abort logic (prevent losses on stalled tokens)
 MIN_REAL_VOLUME = 0.05  # Minimum 0.05 SOL real buys to continue monitoring
