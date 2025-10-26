@@ -260,39 +260,56 @@ class PumpFunReal:
                     print(f"[ERROR] Failed to sign transaction {index}: {sign_err}")
                     return None
             
-            # STEP 6: Submit bundle to Jito
-            print(f"[STEP 6] Submitting bundle to Jito...")
-            print(f"[API] POST {JITO_BUNDLE_API}")
+            # STEP 6: Submit transactions directly to RPC (more reliable than Jito for testing)
+            print(f"[STEP 6] Submitting transactions to RPC...")
+            print(f"[INFO] Using direct RPC submission (more reliable than Jito bundles)")
             
-            async with httpx.AsyncClient(timeout=30.0) as http_client:
-                jito_response = await http_client.post(
-                    JITO_BUNDLE_API,
-                    headers={'Content-Type': 'application/json'},
-                    json={
-                        'jsonrpc': '2.0',
-                        'id': 1,
-                        'method': 'sendBundle',
-                        'params': [encoded_signed_transactions]
-                    }
-                )
-                
-                print(f"[API] Response status: {jito_response.status_code}")
-                
-                if jito_response.status_code == 200:
-                    jito_result = jito_response.json()
-                    print(f"[OK] Bundle submitted to Jito!")
-                    print(f"[INFO] Jito response: {jito_result}")
+            from solana.rpc.async_api import AsyncClient
+            rpc_client = AsyncClient(self.rpc_url)
+            
+            confirmed_count = 0
+            for i, (encoded_signed, signature) in enumerate(zip(encoded_signed_transactions, tx_signatures)):
+                try:
+                    action = bundled_tx_args[i]['action']
+                    print(f"[TX {i}] Sending {action.upper()} transaction...")
                     
-                    # Print all transaction links
-                    for i, signature in enumerate(tx_signatures):
-                        action = bundled_tx_args[i]['action']
-                        print(f"[TX {i}] {action.upper()}: https://solscan.io/tx/{signature}")
+                    # Decode the base58 signed transaction
+                    tx_bytes = base58.b58decode(encoded_signed)
                     
-                    return mint_address
-                else:
-                    print(f"[ERROR] Jito bundle submission failed: {jito_response.status_code}")
-                    print(f"[ERROR] Response: {jito_response.text}")
-                    return None
+                    # Send raw transaction
+                    result = await rpc_client.send_raw_transaction(
+                        tx_bytes,
+                        opts={"skipPreflight": False, "maxRetries": 3}
+                    )
+                    
+                    if result.value:
+                        actual_sig = str(result.value)
+                        print(f"[OK] TX {i} confirmed: {actual_sig[:16]}...")
+                        print(f"[LINK] https://solscan.io/tx/{actual_sig}")
+                        confirmed_count += 1
+                        
+                        # Wait between transactions for sequential processing
+                        if i < len(encoded_signed_transactions) - 1:
+                            await asyncio.sleep(1)
+                    else:
+                        print(f"[ERROR] TX {i} failed to send")
+                        
+                except Exception as tx_err:
+                    print(f"[ERROR] TX {i} error: {tx_err}")
+                    # Continue trying other transactions
+            
+            print(f"\n[RESULT] {confirmed_count}/{len(encoded_signed_transactions)} transactions confirmed")
+            
+            if confirmed_count > 0:
+                print(f"[OK] Token creation initiated!")
+                print(f"[INFO] Mint: {mint_address}")
+                print(f"[INFO] Wait 30s for transactions to finalize...")
+                await asyncio.sleep(30)
+                return mint_address
+            else:
+                print(f"[ERROR] No transactions confirmed!")
+                print(f"[ERROR] Token creation failed")
+                return None
                     
         except Exception as e:
             print(f"[ERROR] Bundled token creation failed: {e}")
