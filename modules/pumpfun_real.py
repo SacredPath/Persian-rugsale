@@ -22,6 +22,7 @@ from .retry_utils import retry_async
 PUMPFUN_IPFS_API = "https://pump.fun/api/ipfs"  # Metadata upload
 PUMPPORTAL_API = "https://pumpportal.fun/api"
 PUMPPORTAL_TRADE_LOCAL = f"{PUMPPORTAL_API}/trade-local"  # Bundle generation (no auth)
+PUMPFUN_TRADE_API = f"{PUMPPORTAL_API}/trade"  # For buy/sell (used by buy_tokens/sell_tokens)
 JITO_BUNDLE_API = "https://mainnet.block-engine.jito.wtf/api/v1/bundles"  # Bundle submission
 
 class PumpFunReal:

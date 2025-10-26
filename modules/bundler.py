@@ -88,14 +88,13 @@ class RugBundler:
                         print(f"[WARNING] Token mint not yet visible on-chain")
                         print(f"[INFO] This is normal for Jito bundles - may take a few seconds")
                         print(f"[INFO] Proceeding anyway - bundle was submitted successfully")
-                        return mint
                     else:
                         print(f"[OK] Token verified on-chain!")
-                        return mint
                 except Exception as verify_error:
                     print(f"[WARNING] Could not verify on-chain (RPC issue): {verify_error}")
                     print(f"[INFO] Proceeding anyway - bundle was submitted successfully")
-                    return mint
+                
+                return mint
             else:
                 print(f"[ERROR] Bundled token creation failed")
                 print(f"[ERROR] Check console logs for details")
@@ -197,20 +196,17 @@ class RugBundler:
             return False
 
     async def create_and_bundle(self, name, symbol, image_url, description="Meme token on Pump.fun"):
-        """Create token and bundle buys."""
+        """Create token with atomic bundled buys (via Jito)."""
         try:
+            # create_token now does bundled creation + initial buys atomically via Jito
+            # No need to call bundle_buy separately!
             mint = await self.create_token(name, symbol, image_url, description)
             if not mint:
                 return None
             
-            success = await self.bundle_buy(mint)
-            
-            if success:
-                print(f"[OK] Launched {name} with bundled buys")
-            else:
-                print(f"[WARNING] Token created but bundling failed")
-            
+            print(f"[OK] Launched {name} with atomic bundled buys via Jito!")
             return mint
+            
         except Exception as e:
             print(f"[ERROR] Create and bundle failed: {e}")
             return None

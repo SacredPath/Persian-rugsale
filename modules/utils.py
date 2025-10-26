@@ -118,8 +118,19 @@ async def calculate_mc(client, mint):
     For now, queries supply and estimates based on liquidity.
     """
     try:
+        # Convert mint string to Pubkey if needed
+        try:
+            from solders.pubkey import Pubkey
+        except ImportError:
+            from solana.publickey import PublicKey as Pubkey
+        
+        if isinstance(mint, str):
+            mint_pubkey = Pubkey.from_string(mint)
+        else:
+            mint_pubkey = mint
+        
         # Get token supply
-        response = await client.get_token_supply(mint)
+        response = await client.get_token_supply(mint_pubkey)
         if response.value:
             supply = float(response.value.amount) / (10 ** response.value.decimals)
             
