@@ -396,40 +396,60 @@ class PumpFunReal:
                                 action = bundled_tx_args[i]['action']
                                 print(f"[TX {i}] {action.upper()}: https://solscan.io/tx/{signature}")
                             
-                            # Wait for bundle to land (Jito bundles usually land within 5-10s)
-                            print(f"[INFO] Waiting 15s for bundle to land on-chain...")
-                            await asyncio.sleep(15)
+                            # Wait for bundle to land with multiple verification attempts
+                            print(f"[INFO] Waiting for bundle to land on-chain...")
                             
-                            # Verify first transaction (create) landed
-                            print(f"[VERIFY] Checking if bundle landed...")
-                            try:
-                                # Convert signature string to Signature object for solders
-                                if USE_SOLDERS:
-                                    sig_obj = Signature.from_string(tx_signatures[0])
-                                    sig_status = await self.client.get_signature_statuses([sig_obj])
-                                else:
-                                    # solana-py accepts strings
-                                    sig_status = await self.client.get_signature_statuses([tx_signatures[0]])
+                            # Try verifying multiple times (bundles can take 20-30s during congestion)
+                            verification_attempts = 6  # 6 attempts × 5s = 30s total wait
+                            bundle_landed = False
+                            
+                            for verify_attempt in range(verification_attempts):
+                                await asyncio.sleep(5)  # Wait 5s between checks
                                 
-                                if sig_status.value and sig_status.value[0]:
-                                    confirmation_status = sig_status.value[0]
-                                    print(f"[OK] Bundle landed on-chain!")
-                                    print(f"[INFO] Confirmation status: {confirmation_status.confirmation_status if hasattr(confirmation_status, 'confirmation_status') else 'confirmed'}")
-                                    print(f"[OK] Token created successfully!")
-                                    return mint_address
-                                else:
-                                    print(f"[WARNING] Bundle may not have landed yet...")
-                                    if attempt < max_attempts - 1:
-                                        print(f"[RETRY] Will try again...")
-                                        await asyncio.sleep(3)
-                                        continue
+                                print(f"[VERIFY {verify_attempt + 1}/{verification_attempts}] Checking if bundle landed...")
+                                try:
+                                    # Convert signature string to Signature object for solders
+                                    if USE_SOLDERS:
+                                        sig_obj = Signature.from_string(tx_signatures[0])
+                                        sig_status = await self.client.get_signature_statuses([sig_obj])
                                     else:
-                                        print(f"[WARNING] Returning mint anyway (check Solscan manually)")
-                                        return mint_address
-                            except Exception as verify_err:
-                                print(f"[WARNING] Could not verify: {verify_err}")
-                                print(f"[INFO] This is OK - bundle likely landed, verification just failed")
+                                        # solana-py accepts strings
+                                        sig_status = await self.client.get_signature_statuses([tx_signatures[0]])
+                                    
+                                    if sig_status.value and sig_status.value[0]:
+                                        confirmation_status = sig_status.value[0]
+                                        print(f"[OK] Bundle landed on-chain!")
+                                        print(f"[INFO] Confirmation status: {confirmation_status.confirmation_status if hasattr(confirmation_status, 'confirmation_status') else 'confirmed'}")
+                                        print(f"[OK] Token created successfully!")
+                                        bundle_landed = True
+                                        break
+                                    else:
+                                        if verify_attempt < verification_attempts - 1:
+                                            print(f"[INFO] Not landed yet, waiting 5s more...")
+                                        else:
+                                            print(f"[WARNING] Bundle may not have landed after {verification_attempts * 5}s")
+                                
+                                except Exception as verify_err:
+                                    print(f"[WARNING] Verification error: {verify_err}")
+                                    if verify_attempt < verification_attempts - 1:
+                                        print(f"[INFO] Will retry verification...")
+                            
+                            # Final decision
+                            if bundle_landed:
                                 return mint_address
+                            else:
+                                print(f"[ERROR] Bundle verification failed - transaction may not have landed")
+                                print(f"[INFO] Check Solscan manually: https://solscan.io/tx/{tx_signatures[0]}")
+                                
+                                # If this was the last Jito attempt, return None (token creation failed)
+                                if attempt >= max_attempts - 1:
+                                    print(f"[ERROR] All Jito attempts exhausted - token creation FAILED")
+                                    return None
+                                else:
+                                    # Try submitting to Jito again
+                                    print(f"[RETRY] Will submit bundle to Jito again...")
+                                    await asyncio.sleep(3)
+                                    continue
                         else:
                             print(f"[ERROR] Jito HTTP error: {jito_response.status_code}")
                             print(f"[ERROR] Response: {jito_response.text}")
