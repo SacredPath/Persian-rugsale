@@ -82,12 +82,15 @@ def handle_start(message):
 def handle_launch(message):
     """Launch token with validation and auto-monitoring."""
     try:
-        args = message.text.split()[1:]
+        args = message.text.split(maxsplit=4)[1:]  # Allow description with spaces
         if len(args) < 3:
-            bot.reply_to(message, "Usage: /launch <name> <symbol> <image_url>")
+            bot.reply_to(message, "Usage: /launch <name> <symbol> <image_url> [description]\n\nOr use the Launch Token button for guided wizard!")
             return
         
-        name, symbol, image_url = args[0], args[1], args[2]
+        name = args[0]
+        symbol = args[1]
+        image_url = args[2]
+        description = args[3] if len(args) >= 4 else "Meme token on Pump.fun"
         
         # Input validation
         if len(name) > 32:
@@ -99,11 +102,15 @@ def handle_launch(message):
         if not image_url.startswith('http'):
             bot.reply_to(message, "[ERROR] Invalid image URL (must start with http)")
             return
+        if len(description) > 200:
+            bot.reply_to(message, "[ERROR] Description too long (max 200 chars)")
+            return
         
         bot.reply_to(message, f"[LAUNCH] Creating {name} ({symbol})...")
+        bot.reply_to(message, f"[INFO] {description}")
         bot.reply_to(message, f"[INFO] 4 wallets will buy sequentially (optimized for <$10)")
         
-        mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url))
+        mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url, description))
         
         if mint:
             # Store active token for this chat
@@ -340,9 +347,24 @@ def handle_wizard_input(message):
             return
         
         state['symbol'] = symbol
+        state['step'] = 'description'
+        
+        bot.reply_to(message, f"[OK] Symbol: {symbol}\n\nNow enter token DESCRIPTION (1-200 characters):")
+    
+    elif state['step'] == 'description':
+        # Validate description
+        description = message.text.strip()
+        if len(description) > 200:
+            bot.reply_to(message, "[ERROR] Description too long! Max 200 characters.\n\nTry again:")
+            return
+        if len(description) < 1:
+            bot.reply_to(message, "[ERROR] Description cannot be empty!\n\nTry again:")
+            return
+        
+        state['description'] = description
         state['step'] = 'image'
         
-        bot.reply_to(message, f"[OK] Symbol: {symbol}\n\nNow enter image URL (must start with http):")
+        bot.reply_to(message, f"[OK] Description: {description}\n\nNow enter image URL (must start with http):")
     
     elif state['step'] == 'image':
         # Validate image URL
@@ -365,6 +387,7 @@ def handle_wizard_input(message):
             f"{'='*40}\n\n"
             f"Name: {state['name']}\n"
             f"Symbol: {state['symbol']}\n"
+            f"Description: {state['description']}\n"
             f"Image: {image_url}\n\n"
             f"Cost: ~0.053 SOL (~$10.20) Budget-optimized\n"
             f"Wallets: 4 (efficient for quick pumps)\n"
@@ -392,6 +415,7 @@ def handle_callback(call):
                 'step': 'name',
                 'name': None,
                 'symbol': None,
+                'description': None,
                 'image_url': None
             }
             
@@ -413,6 +437,7 @@ def handle_callback(call):
             state = launch_wizard[chat_id]
             name = state['name']
             symbol = state['symbol']
+            description = state['description']
             image_url = state['image_url']
             
             # Clear wizard state
@@ -420,10 +445,11 @@ def handle_callback(call):
             
             # Launch token
             bot.send_message(chat_id, f"[LAUNCH] Creating {name} ({symbol})...")
+            bot.send_message(chat_id, f"[INFO] {description}")
             bot.send_message(chat_id, f"[INFO] 4 wallets will buy sequentially (optimized for <$10)")
             
             try:
-                mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url))
+                mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url, description))
                 
                 if mint:
                     # Store active token

@@ -165,10 +165,10 @@ class RugBundler:
             print(f"[ERROR] Bundle buy failed: {e}")
             return False
 
-    async def create_and_bundle(self, name, symbol, image_url):
+    async def create_and_bundle(self, name, symbol, image_url, description="Meme token on Pump.fun"):
         """Create token and bundle buys."""
         try:
-            mint = await self.create_token(name, symbol, image_url)
+            mint = await self.create_token(name, symbol, image_url, description)
             if not mint:
                 return None
             
@@ -181,5 +181,5 @@ class RugBundler:
             
             return mint
         except Exception as e:
-            print(f"Create and bundle failed: {e}")
+            print(f"[ERROR] Create and bundle failed: {e}")
             return None

@@ -1,0 +1,39 @@
+## Quick Replit Restart Guide
+
+### Port 8080 Already in Use?
+
+**Problem:** Old bot instance still running
+
+**Fix (Run in Replit Shell):**
+
+```bash
+# Kill all Python processes
+pkill -9 python
+
+# Wait 2 seconds
+sleep 2
+
+# Verify clean state
+ps aux | grep python
+# (Should show nothing or just the grep command)
+
+# Restart bot
+python main.py
+```
+
+### One-Liner:
+```bash
+pkill -9 python && sleep 2 && python main.py
+```
+
+### Expected Output After Clean Start:
+```
+[OK] REAL Bundler initialized: 4 wallets
+[OK] REAL Rug Executor: 4 wallets
+[OK] Profit Collector initialized: 4 wallets -> FLeD...
+[KEEP-ALIVE] Web server started on port 8080
+Simple Rug Bot Starting...
+```
+
+No "Address already in use" error = Success! ✅
+
