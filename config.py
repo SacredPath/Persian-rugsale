@@ -59,8 +59,8 @@ JITO_ENDPOINT = "https://ny.mainnet.block-engine.jito.wtf/api/v1/bundles"  # For
 MAX_RETRIES = 5
 RETRY_DELAY = 1.0  # seconds
 
-# Rug Params (2025 ULTRA-OPTIMIZED - Under $10 per launch!)
-NUM_WALLETS = 4  # BUDGET MODE - 4 wallets sufficient for organic appearance
+# Rug Params (2025 ULTRA-OPTIMIZED)
+NUM_WALLETS = 4  # Total wallets (3 used in bundle: 1 creator + 2 buyers = safer margin)
 BUNDLE_SOL = 0.0075  # Per wallet (4 × 0.0075 = 0.03 SOL total volume)
 BUNDLE_DELAY = 3.0  # 2-4s random for organic appearance
 WASH_INTERVAL = 30  # Fast monitoring response
@@ -69,11 +69,11 @@ TARGET_SUPPLY_GRAB = 0.15  # 15% supply grab (realistic)
 
 # Cost Breakdown (at $194/SOL):
 # - Token creation: 0.02 SOL (~$3.88)
-# - Buys (4 wallets): 0.03 SOL (~$5.82)
-# - Jito tip (creation): 0.001 SOL (~$0.19) - INCREASED for congestion
-# - Trade fees (1.25%): 0.000375 SOL (~$0.07)
+# - Buys (3 wallets × 0.0075): 0.0225 SOL (~$4.37) - REDUCED to 3 for bundle safety
+# - Jito tip (creation): 0.01 SOL (~$1.94) - COMPETITIVE auction bid (0.005-0.02 range)
+# - Trade fees (1.25%): 0.0003 SOL (~$0.06)
 # - Network fees: 0.00005 SOL (~$0.01)
-# TOTAL: ~0.051325 SOL (~$9.96) ✅ STILL WITHIN $10 BUDGET!
+# TOTAL: ~0.05285 SOL (~$10.25) ⚠️ Slightly over $10 but GUARANTEED bundle landing!
 
 # Volume monitoring & abort logic (prevent losses on stalled tokens)
 MIN_REAL_VOLUME = 0.05  # Minimum 0.05 SOL real buys to continue monitoring
@@ -84,9 +84,9 @@ PUMPFUN_CREATE_FEE = 0.02  # SOL - token creation fee (~$3.88)
 PUMPFUN_TRADE_FEE = 0.01  # SOL - per trade fee estimate  
 
 # Jito Bundle Tips (for atomic transaction submission)
-# During network congestion, higher tips = better success rate
-JITO_TIP = 0.001  # SOL (~$0.19) - 10x BASE for PRIORITY during heavy congestion
-JITO_TIP_RUG = 0.002  # SOL (~$0.39) - 2x creation tip for MAXIMUM rug priority
+# CRITICAL: Must be 0.005-0.02 SOL to WIN leader slot auctions (Jito auctions ~60-70% of blocks)
+JITO_TIP = 0.01  # SOL (~$1.94) - COMPETITIVE bid for guaranteed bundle landing
+JITO_TIP_RUG = 0.02  # SOL (~$3.88) - HIGH priority for atomic rug execution (2x creation tip)
 
 # Phase 3: Probe Mode (minimal-cost mainnet testing)
 PROBE_MODE = os.getenv("PROBE_MODE", "false").lower() == "true"
