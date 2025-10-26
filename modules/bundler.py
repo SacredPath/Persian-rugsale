@@ -49,6 +49,57 @@ class RugBundler:
             print(f"   - Wallet 1-2: Buy {1000000} tokens each")
             print(f"   - Total: 3 transactions in atomic bundle (safer margin)")
             
+            # PRE-FLIGHT: Check wallet balances BEFORE creating bundle (prevent failed txs)
+            print(f"\n[PRE-FLIGHT] Checking wallet balances...")
+            try:
+                # Import Pubkey for balance checks
+                try:
+                    from solders.pubkey import Pubkey
+                except ImportError:
+                    from solana.publickey import PublicKey as Pubkey
+                
+                from config import PUMPFUN_CREATE_FEE, BUNDLE_SOL, JITO_TIP
+                
+                # Define minimum required balances
+                creator_min = PUMPFUN_CREATE_FEE + BUNDLE_SOL + JITO_TIP + 0.002  # Creation + buy + tip + buffer
+                buyer_min = BUNDLE_SOL + 0.002  # Buy + buffer
+                
+                all_funded = True
+                for i, wallet in enumerate(wallets_for_bundle):
+                    wallet_addr = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
+                    wallet_pubkey = Pubkey.from_string(wallet_addr)
+                    
+                    balance_resp = await self.client.get_balance(wallet_pubkey)
+                    balance_sol = balance_resp.value / 1e9 if balance_resp.value else 0.0
+                    
+                    # Determine required balance based on wallet role
+                    if i == 0:
+                        required_sol = creator_min
+                        role = "Creator (create + buy + tip)"
+                    else:
+                        required_sol = buyer_min
+                        role = f"Buyer {i}"
+                    
+                    if balance_sol < required_sol:
+                        print(f"   [ERROR] Wallet {i} ({role}): {balance_sol:.4f} SOL < {required_sol:.4f} SOL required")
+                        print(f"           Address: {wallet_addr}")
+                        print(f"           Shortfall: {required_sol - balance_sol:.4f} SOL")
+                        all_funded = False
+                    else:
+                        surplus = balance_sol - required_sol
+                        print(f"   [OK] Wallet {i} ({role}): {balance_sol:.4f} SOL (surplus: {surplus:.4f} SOL)")
+                
+                if not all_funded:
+                    print(f"\n[ERROR] INSUFFICIENT FUNDS - Aborting token creation")
+                    print(f"[INFO] Fund wallets and try again")
+                    return None
+                
+                print(f"[OK] All wallets funded - proceeding with bundle creation\n")
+                
+            except Exception as balance_err:
+                print(f"[WARNING] Balance check failed: {balance_err}")
+                print(f"[WARNING] Proceeding anyway - ensure wallets are funded!")
+            
             # Create token with bundled buys (NO API KEY NEEDED!)
             mint = await self.pumpfun.create_token_bundled(
                 wallets=wallets_for_bundle,
