@@ -463,7 +463,7 @@ class RugExecutor:
                             )
                             
                             if result:
-                    success_count += 1
+                                success_count += 1
                                 print(f"   [{success_count}] [OK] {wallet_addr[:8]}")
                                 
                                 # Small delay between sells
