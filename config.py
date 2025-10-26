@@ -46,12 +46,10 @@ if not MAIN_WALLET:
     print("[WARNING] MAIN_WALLET not set - 'Collect Profits' button will be disabled")
     print("[INFO] Add MAIN_WALLET=YourPhantomAddress to .env or Replit Secrets")
 
-# PumpPortal API Key (for token creation via PumpPortal.fun)
-PUMPPORTAL_API_KEY = os.getenv("PUMPPORTAL_API_KEY")
-if not PUMPPORTAL_API_KEY:
-    print("[WARNING] PUMPPORTAL_API_KEY not set - Token creation will fail!")
-    print("[INFO] Get API key from https://pumpportal.fun and add to .env or Replit Secrets")
-    print("[INFO] Add PUMPPORTAL_API_KEY=your-api-key to .env")
+# PumpPortal API - NO KEY NEEDED!
+# We use /trade-local endpoint which doesn't require authentication
+# Token creation is done via bundled Jito transactions
+print("[INFO] PumpPortal: Using /trade-local endpoint (no API key required)")
 
 # Program IDs and Endpoints
 PUMP_FUN_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"  # Pump.fun

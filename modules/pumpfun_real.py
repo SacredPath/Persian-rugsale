@@ -16,11 +16,13 @@ from solana.transaction import Transaction
 from .retry_utils import retry_async
 
 # Pump.fun API endpoints (Official PumpPortal documentation)
-# Step 1: Upload metadata to pump.fun (NOT pumpportal.fun!)
-# Step 2: Create token via pumpportal.fun/api/trade with 'create' action
-PUMPFUN_IPFS_API = "https://pump.fun/api/ipfs"  # For metadata upload
+# Step 1: Upload metadata to pump.fun
+# Step 2: Generate bundled transactions via /trade-local (NO API KEY NEEDED!)
+# Step 3: Sign locally and submit to Jito
+PUMPFUN_IPFS_API = "https://pump.fun/api/ipfs"  # Metadata upload
 PUMPPORTAL_API = "https://pumpportal.fun/api"
-PUMPPORTAL_TRADE_API = f"{PUMPPORTAL_API}/trade"  # For create/buy/sell
+PUMPPORTAL_TRADE_LOCAL = f"{PUMPPORTAL_API}/trade-local"  # Bundle generation (no auth)
+JITO_BUNDLE_API = "https://mainnet.block-engine.jito.wtf/api/v1/bundles"  # Bundle submission
 
 class PumpFunReal:
     """Real Pump.fun integration for token creation and trading."""
@@ -30,57 +32,59 @@ class PumpFunReal:
         self.rpc_url = rpc_url
         
     @retry_async(max_attempts=3, delay=1.0)
-    async def create_token(
+    async def create_token_bundled(
         self,
-        creator_wallet: Keypair,
+        wallets: list,  # List of Keypair objects for bundled buys
         name: str,
         symbol: str,
         description: str,
         image_url: str,
+        buy_amount_tokens: int = 1000000,  # Tokens per wallet (NOT SOL!)
         twitter: Optional[str] = None,
         telegram: Optional[str] = None,
-        website: Optional[str] = None,
-        dev_buy_sol: float = 0.0001  # Initial dev buy (minimum)
+        website: Optional[str] = None
     ) -> Optional[str]:
         """
-        Create REAL token on Pump.fun via PumpPortal API (Official method)
+        Create REAL token on Pump.fun with BUNDLED initial buys (Official PumpPortal method)
         
-        Two-step process:
+        Process:
         1. Upload metadata to pump.fun/api/ipfs
-        2. Send create transaction to pumpportal.fun/api/trade
+        2. Generate bundled transactions via /trade-local (create + buys)
+        3. Sign transactions locally
+        4. Submit as atomic Jito bundle
         
         Args:
-            creator_wallet: Creator's keypair
+            wallets: List of Keypair objects (first = creator, rest = buyers)
             name: Token name
             symbol: Token symbol
             description: Token description
-            image_url: Image URL (direct link required)
+            image_url: Image URL (direct link or will auto-convert Imgur)
+            buy_amount_tokens: Tokens per wallet (default 1M tokens each)
             twitter: Twitter link (optional)
             telegram: Telegram link (optional)
             website: Website URL (optional)
-            dev_buy_sol: Initial dev buy amount (default 0.0001 SOL)
         
         Returns:
             Token mint address or None
             
-        Note: Requires PUMPPORTAL_API_KEY in config
+        Note: NO API KEY NEEDED! Uses /trade-local endpoint
         """
         try:
-            from config import PUMPPORTAL_API_KEY
+            import base58
+            try:
+                from solders.transaction import VersionedTransaction
+            except ImportError:
+                from solana.transaction import VersionedTransaction
             
-            print(f"[LAUNCH] Creating token on Pump.fun: {name} ({symbol})")
-            print(f"[INFO] Using official PumpPortal API")
+            print(f"[LAUNCH] Creating token with BUNDLED buys: {name} ({symbol})")
+            print(f"[INFO] Using official PumpPortal bundled method")
+            print(f"[INFO] Wallets: {len(wallets)} (1 creator + {len(wallets)-1} buyers)")
             
-            if not PUMPPORTAL_API_KEY:
-                print(f"[ERROR] PUMPPORTAL_API_KEY not set in config!")
-                print(f"[ERROR] Get API key from https://pumpportal.fun")
+            if not wallets or len(wallets) < 1:
+                print(f"[ERROR] Need at least 1 wallet (creator)")
                 return None
             
-            # Get creator public key
-            try:
-                creator_pubkey = str(creator_wallet.pubkey())
-            except:
-                creator_pubkey = str(creator_wallet.public_key)
+            creator_wallet = wallets[0]
             
             # Fix Imgur links (convert page to direct image)
             processed_image_url = image_url
@@ -148,15 +152,20 @@ class PumpFunReal:
                 print(f"[OK] Metadata uploaded!")
                 print(f"   URI: {metadata_uri}")
             
-            # STEP 2: Create token via pumpportal.fun/api/trade
-            print(f"[STEP 2] Creating token on Pump.fun...")
-            
-            # Generate new mint keypair
+            # STEP 2: Generate mint keypair
+            print(f"[STEP 2] Generating mint keypair...")
             mint_keypair = Keypair()
             mint_address = str(mint_keypair.pubkey() if hasattr(mint_keypair, 'pubkey') else mint_keypair.public_key)
+            print(f"[INFO] Mint address: {mint_address}")
             
-            # Prepare create transaction payload
-            create_payload = {
+            # STEP 3: Build bundled transaction arguments
+            print(f"[STEP 3] Building bundled transactions...")
+            bundled_tx_args = []
+            
+            # First transaction: CREATE with dev buy
+            creator_pubkey = str(creator_wallet.pubkey() if hasattr(creator_wallet, 'pubkey') else creator_wallet.public_key)
+            bundled_tx_args.append({
+                'publicKey': creator_pubkey,
                 'action': 'create',
                 'tokenMetadata': {
                     'name': name,
@@ -164,45 +173,128 @@ class PumpFunReal:
                     'uri': metadata_uri
                 },
                 'mint': mint_address,
-                'denominatedInSol': 'true',
-                'amount': dev_buy_sol,
+                'denominatedInSol': 'false',  # Use tokens, not SOL
+                'amount': buy_amount_tokens,  # Tokens to buy
                 'slippage': 10,
                 'priorityFee': 0.0005,
                 'pool': 'pump'
-            }
+            })
             
-            trade_url = f"{PUMPPORTAL_TRADE_API}?api-key={PUMPPORTAL_API_KEY}"
-            print(f"[API] POST {PUMPPORTAL_TRADE_API}")
+            # Additional transactions: BUY from other wallets (up to 4 more, total 5 max)
+            buyer_wallets = wallets[1:5] if len(wallets) > 1 else []  # Max 5 transactions
+            for wallet in buyer_wallets:
+                buyer_pubkey = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
+                bundled_tx_args.append({
+                    'publicKey': buyer_pubkey,
+                    'action': 'buy',
+                    'mint': mint_address,
+                    'denominatedInSol': 'false',
+                    'amount': buy_amount_tokens,
+                    'slippage': 50,
+                    'priorityFee': 0.0001,  # Ignored after first tx
+                    'pool': 'pump'
+                })
+            
+            print(f"[INFO] Bundle: 1 create + {len(buyer_wallets)} buys = {len(bundled_tx_args)} transactions")
+            
+            # STEP 4: Generate unsigned transactions from /trade-local
+            print(f"[STEP 4] Generating unsigned transactions...")
+            print(f"[API] POST {PUMPPORTAL_TRADE_LOCAL}")
             
             async with httpx.AsyncClient(timeout=30.0) as http_client:
-                create_response = await http_client.post(
-                    trade_url,
+                trade_local_response = await http_client.post(
+                    PUMPPORTAL_TRADE_LOCAL,
                     headers={'Content-Type': 'application/json'},
-                    json=create_payload
+                    json=bundled_tx_args
                 )
                 
-                print(f"[API] Response status: {create_response.status_code}")
+                print(f"[API] Response status: {trade_local_response.status_code}")
                 
-                if create_response.status_code == 200:
-                    result = create_response.json()
-                    signature = result.get('signature')
+                if trade_local_response.status_code != 200:
+                    print(f"[ERROR] Failed to generate transactions")
+                    print(f"[ERROR] Response: {trade_local_response.text}")
+                    return None
+                
+                encoded_transactions = trade_local_response.json()
+                print(f"[OK] Generated {len(encoded_transactions)} unsigned transactions")
+            
+            # STEP 5: Sign all transactions
+            print(f"[STEP 5] Signing transactions...")
+            encoded_signed_transactions = []
+            tx_signatures = []
+            
+            for index, encoded_tx in enumerate(encoded_transactions):
+                try:
+                    # Decode transaction
+                    tx_bytes = base58.b58decode(encoded_tx)
+                    versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
                     
-                    if signature:
-                        print(f"[OK] Token created on Pump.fun!")
-                        print(f"   Mint: {mint_address}")
-                        print(f"   TX: https://solscan.io/tx/{signature}")
-                        return mint_address
+                    # Sign with appropriate keypair(s)
+                    if bundled_tx_args[index]['action'] == 'create':
+                        # Create: sign with mint + creator
+                        signed_tx = VersionedTransaction(
+                            versioned_tx.message,
+                            [mint_keypair, creator_wallet]
+                        )
                     else:
-                        print(f"[ERROR] No signature in response")
-                        print(f"[ERROR] Response: {result}")
-                        return None
+                        # Buy: sign with buyer wallet
+                        buyer_wallet = wallets[index]  # index 1+ corresponds to wallets[1+]
+                        signed_tx = VersionedTransaction(
+                            versioned_tx.message,
+                            [buyer_wallet]
+                        )
+                    
+                    # Encode signed transaction
+                    signed_tx_bytes = bytes(signed_tx)
+                    encoded_signed = base58.b58encode(signed_tx_bytes).decode()
+                    encoded_signed_transactions.append(encoded_signed)
+                    
+                    # Extract signature
+                    signature = str(signed_tx.signatures[0])
+                    tx_signatures.append(signature)
+                    
+                    print(f"[OK] Signed TX {index}: {signature[:16]}...")
+                    
+                except Exception as sign_err:
+                    print(f"[ERROR] Failed to sign transaction {index}: {sign_err}")
+                    return None
+            
+            # STEP 6: Submit bundle to Jito
+            print(f"[STEP 6] Submitting bundle to Jito...")
+            print(f"[API] POST {JITO_BUNDLE_API}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                jito_response = await http_client.post(
+                    JITO_BUNDLE_API,
+                    headers={'Content-Type': 'application/json'},
+                    json={
+                        'jsonrpc': '2.0',
+                        'id': 1,
+                        'method': 'sendBundle',
+                        'params': [encoded_signed_transactions]
+                    }
+                )
+                
+                print(f"[API] Response status: {jito_response.status_code}")
+                
+                if jito_response.status_code == 200:
+                    jito_result = jito_response.json()
+                    print(f"[OK] Bundle submitted to Jito!")
+                    print(f"[INFO] Jito response: {jito_result}")
+                    
+                    # Print all transaction links
+                    for i, signature in enumerate(tx_signatures):
+                        action = bundled_tx_args[i]['action']
+                        print(f"[TX {i}] {action.upper()}: https://solscan.io/tx/{signature}")
+                    
+                    return mint_address
                 else:
-                    print(f"[ERROR] Create transaction failed: {create_response.status_code}")
-                    print(f"[ERROR] Response: {create_response.text}")
+                    print(f"[ERROR] Jito bundle submission failed: {jito_response.status_code}")
+                    print(f"[ERROR] Response: {jito_response.text}")
                     return None
                     
         except Exception as e:
-            print(f"[ERROR] Pump.fun token creation failed: {e}")
+            print(f"[ERROR] Bundled token creation failed: {e}")
             import traceback
             traceback.print_exc()
             return None
