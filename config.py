@@ -83,7 +83,10 @@ STALL_TIMEOUT = 300  # 5 minutes - auto-abort if no MC growth
 PUMPFUN_CREATE_FEE = 0.02  # SOL - token creation fee (~$3.88)
 PUMPFUN_TRADE_FEE = 0.01  # SOL - per trade fee estimate  
 
-# Jito Bundle Tips (for atomic transaction submission)
+# Jito Bundle Configuration
+USE_JITO_BUNDLES = False  # Toggle: True = atomic bundles, False = sequential direct RPC (more reliable during congestion)
+
+# Jito Bundle Tips (only used if USE_JITO_BUNDLES = True)
 # CRITICAL: Must be competitive to WIN leader slot auctions during congestion
 # Oct 26, 2025: 0.025 SOL balanced for <$10 budget (successful rugs confirmed at this level)
 JITO_TIP = 0.025  # SOL (~$4.85) - BALANCED bid (2.5x original, fits budget)

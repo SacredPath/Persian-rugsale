@@ -137,6 +137,18 @@ class PumpFunReal:
                                         # Still processing - continue polling
                                         await asyncio.sleep(check_interval)
                         
+                                    else:
+                                        # Unknown status
+                                        print(f"[POLLER] Unknown status: {confirmation}")
+                                        await asyncio.sleep(check_interval)
+                                else:
+                                    # No status yet
+                                    print(f"[POLL {poll_count}] No status yet (elapsed: {elapsed:.1f}s)")
+                                    await asyncio.sleep(check_interval)
+                            else:
+                                print(f"[POLLER] Invalid response format")
+                                await asyncio.sleep(check_interval)
+                        
                         elif response.status_code == 429:
                             consecutive_429s += 1
                             # Exponential backoff: 10s, 20s, 30s, cap at 30s
@@ -144,24 +156,10 @@ class PumpFunReal:
                             print(f"[RATE LIMIT] 429 #{consecutive_429s} - backing off {backoff_time}s")
                             await asyncio.sleep(backoff_time)
                             continue  # Don't count as a poll, retry immediately after backoff
-                                    else:
-                                        # Unknown status
-                                        print(f"[POLLER] Unknown status: {confirmation}")
-                                        await asyncio.sleep(check_interval)
-                                        continue
-                                else:
-                                    # No status yet
-                                    print(f"[POLL {poll_count}] No status yet (elapsed: {elapsed:.1f}s)")
-                                    await asyncio.sleep(check_interval)
-                                    continue
-                            else:
-                                print(f"[POLLER] Invalid response format")
-                                await asyncio.sleep(check_interval)
-                                continue
+                        
                         else:
                             print(f"[POLLER] HTTP {response.status_code}: {response.text[:100]}")
                             await asyncio.sleep(check_interval)
-                            continue
                     
                 except Exception as poll_err:
                     print(f"[POLLER] Poll error: {poll_err}")
@@ -246,7 +244,8 @@ class PumpFunReal:
         image_url: str,
         twitter: Optional[str] = None,
         telegram: Optional[str] = None,
-        website: Optional[str] = None
+        website: Optional[str] = None,
+        use_jito: Optional[bool] = None  # Override USE_JITO_BUNDLES config if provided
     ) -> Optional[str]:
         """
         Create REAL token on Pump.fun with BUNDLED initial buys (Official PumpPortal method)
@@ -288,6 +287,17 @@ class PumpFunReal:
             
             # Create fresh AsyncClient for this call (avoid event loop issues)
             self.client = AsyncClient(self.rpc_url)
+            
+            # Check if Jito bundles are enabled
+            from config import USE_JITO_BUNDLES
+            jito_enabled = USE_JITO_BUNDLES if use_jito is None else use_jito
+            
+            if not jito_enabled:
+                print(f"[INFO] Jito bundles DISABLED - using sequential direct RPC submission")
+                print(f"[INFO] This is more reliable during network congestion")
+                # TODO: Implement direct RPC fallback (for now, will use Jito anyway with warning)
+                print(f"[WARNING] Direct RPC mode not yet fully implemented - proceeding with Jito")
+                # Fall through to Jito logic for now
             
             if not wallets or len(wallets) < 1:
                 print(f"[ERROR] Need at least 1 wallet (creator)")
