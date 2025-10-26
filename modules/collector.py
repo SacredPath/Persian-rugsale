@@ -76,6 +76,33 @@ class ProfitCollector:
                 "details": []
             }
             
+            # SAFETY CHECK: Ensure MAIN_WALLET is not one of the bot wallets
+            try:
+                main_pubkey = Pubkey.from_string(MAIN_WALLET)
+                main_wallet_str = str(main_pubkey)
+                
+                for i, wallet in enumerate(self.wallets[:NUM_WALLETS]):
+                    try:
+                        bot_wallet_addr = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
+                        if bot_wallet_addr == main_wallet_str:
+                            print(f"[ERROR] MAIN_WALLET is bot wallet {i} - cannot collect")
+                            return {
+                                "success": False,
+                                "error": f"MAIN_WALLET is bot wallet {i} (cannot transfer to self)",
+                                "collectible": 0,
+                                "details": []
+                            }
+                    except Exception as e:
+                        print(f"[WARNING] Could not verify wallet {i}: {e}")
+            except Exception as e:
+                print(f"[ERROR] Invalid MAIN_WALLET: {e}")
+                return {
+                    "success": False,
+                    "error": f"Invalid MAIN_WALLET: {e}",
+                    "collectible": 0,
+                    "details": []
+                }
+            
             RENT_EXEMPT = 890880  # Solana standard rent-exempt minimum
             TX_FEE_ESTIMATE = 5000  # ~0.000005 SOL transaction fee
             RESERVE = RENT_EXEMPT + TX_FEE_ESTIMATE
