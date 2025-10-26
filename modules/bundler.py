@@ -56,21 +56,35 @@ class RugBundler:
             
             if mint:
                 print(f"[OK] Pump.fun token created: {mint}")
-                return mint
+                
+                # Verify token exists on-chain
+                print(f"[VERIFY] Checking if token exists on-chain...")
+                await asyncio.sleep(2)  # Wait for propagation
+                
+                try:
+                    # Import Pubkey for verification
+                    try:
+                        from solders.pubkey import Pubkey
+                    except ImportError:
+                        from solana.publickey import PublicKey as Pubkey
+                    
+                    mint_pubkey = Pubkey.from_string(mint)
+                    account_info = await self.client.get_account_info(mint_pubkey)
+                    if account_info.value is None:
+                        print(f"[ERROR] Token mint does not exist on-chain!")
+                        print(f"[ERROR] Pump.fun returned invalid mint address")
+                        return None
+                    else:
+                        print(f"[OK] Token verified on-chain!")
+                        return mint
+                except Exception as verify_error:
+                    print(f"[WARNING] Could not verify on-chain (RPC issue): {verify_error}")
+                    print(f"[INFO] Proceeding anyway - check manually")
+                    return mint
             else:
-                print(f"[ERROR] Pump.fun creation failed, falling back to simple token")
-                # Fallback to simple token generation
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    mint = await asyncio.get_event_loop().run_in_executor(
-                        executor,
-                        create_simple_token,
-                        creator,
-                        name,
-                        symbol,
-                        self.rpc_url
-                    )
-            return mint
+                print(f"[ERROR] Pump.fun creation failed - NO FALLBACK")
+                print(f"[ERROR] Token creation requires valid Pump.fun API response")
+                return None
                 
         except Exception as e:
             print(f"[ERROR] Token creation error: {e}")

@@ -98,30 +98,52 @@ class PumpFunReal:
                 payload["website"] = website
             
             # Call Pump.fun create API
+            create_endpoint = f"{PUMPFUN_API}/trade-local"  # Updated endpoint for token creation
+            print(f"[API] Calling: {create_endpoint}")
+            print(f"[API] Payload: {payload}")
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    f"{PUMPFUN_API}/create",
-                    json=payload
-                )
-                
-                if response.status_code != 200:
-                    print(f"[ERROR] Pump.fun API error: {response.status_code}")
-                    print(f"   Response: {response.text}")
+                try:
+                    response = await client.post(
+                        create_endpoint,
+                        json=payload
+                    )
+                    
+                    print(f"[API] Response status: {response.status_code}")
+                    print(f"[API] Response body: {response.text[:500]}")  # First 500 chars
+                    
+                    if response.status_code != 200:
+                        print(f"[ERROR] Pump.fun API error: {response.status_code}")
+                        print(f"[ERROR] Full response: {response.text}")
+                        print(f"[ERROR] This usually means:")
+                        print(f"   - API endpoint changed or doesn't exist")
+                        print(f"   - Missing API key or authentication")
+                        print(f"   - Invalid parameters")
+                        return None
+                    
+                    result = response.json()
+                    
+                    if "mint" in result:
+                        mint = result["mint"]
+                        print(f"[OK] Token created on Pump.fun!")
+                        print(f"   Mint: {mint}")
+                        print(f"   Name: {name}")
+                        print(f"   Symbol: {symbol}")
+                        print(f"   Bonding curve: {result.get('bondingCurve', 'N/A')}")
+                        return mint
+                    else:
+                        print(f"[ERROR] No 'mint' field in API response")
+                        print(f"[ERROR] Full response: {result}")
+                        print(f"[ERROR] Available fields: {list(result.keys())}")
+                        return None
+                        
+                except httpx.HTTPError as http_err:
+                    print(f"[ERROR] HTTP error occurred: {http_err}")
+                    print(f"[ERROR] This usually means network/connection issue")
                     return None
-                
-                result = response.json()
-                
-                if "mint" in result:
-                    mint = result["mint"]
-                    print(f"[OK] Token created on Pump.fun!")
-                    print(f"   Mint: {mint}")
-                    print(f"   Name: {name}")
-                    print(f"   Symbol: {symbol}")
-                    print(f"   Bonding curve: {result.get('bondingCurve', 'N/A')}")
-                    return mint
-                else:
-                    print(f"[ERROR] No mint address in response")
-                    print(f"   Response: {result}")
+                except Exception as json_err:
+                    print(f"[ERROR] Failed to parse JSON response: {json_err}")
+                    print(f"[ERROR] Raw response: {response.text}")
                     return None
                     
         except Exception as e:

@@ -21,7 +21,10 @@ except ImportError:
 
 def create_simple_token(creator_wallet, name, symbol, rpc_url):
     """
-    Fallback token creation - generates mint keypair only
+    **DEPRECATED - DO NOT USE IN PRODUCTION**
+    
+    This function only generates a random keypair WITHOUT creating a token on-chain.
+    It was a fallback that caused bugs (tokens don't exist on Pump.fun/Dexscreener).
     
     Args:
         creator_wallet: Keypair of creator
@@ -30,29 +33,19 @@ def create_simple_token(creator_wallet, name, symbol, rpc_url):
         rpc_url: RPC endpoint
     
     Returns:
-        Token mint address or None
+        None (always fails in production)
     
-    Note: This is a FALLBACK. Primary method is Pump.fun via pumpfun_real.py
+    Note: Real token creation MUST use Pump.fun via pumpfun_real.py
     """
-    try:
-        print(f"[WARNING]  Using fallback token generation for: {name} ({symbol})")
-        
-        # Generate new mint keypair
-        mint_keypair = Keypair()
-        
-        try:
-            mint_pubkey = str(mint_keypair.pubkey())
-        except:
-            mint_pubkey = str(mint_keypair.public_key)
-        
-        print(f"[OK] Mint address generated: {mint_pubkey}")
-        print(f"[WARNING]  Note: Use Pump.fun for real on-chain token creation")
-        
-        return mint_pubkey
-        
-    except Exception as e:
-        print(f"[ERROR] Token creation failed: {e}")
-        return None
+    print(f"[ERROR] **DEPRECATED FUNCTION CALLED: create_simple_token**")
+    print(f"[ERROR] This function generates FAKE mint addresses!")
+    print(f"[ERROR] Token: {name} ({symbol})")
+    print(f"[ERROR] Result: NO TOKEN WILL BE CREATED ON-CHAIN")
+    print(f"[ERROR] Buys/sells will FAIL because mint doesn't exist")
+    print(f"[ERROR] Use Pump.fun API for real token creation")
+    print(f"[ERROR] Aborting to prevent fake token creation...")
+    
+    return None  # Always fail to prevent fake tokens
 
 def get_token_balance_simple(wallet_pubkey, token_mint, rpc_url):
     """
