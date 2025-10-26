@@ -15,13 +15,12 @@ from solana.rpc.async_api import AsyncClient
 from solana.transaction import Transaction
 from .retry_utils import retry_async
 
-# Pump.fun API endpoints
-# Note: PumpPortal API may change. Current endpoints as of Oct 2025:
-# - /ipfs: Upload metadata and create token
-# - /trade: Buy/sell existing tokens
-PUMPFUN_API = "https://pumpportal.fun/api"
-PUMPFUN_TRADE_API = f"{PUMPFUN_API}/trade"
-PUMPFUN_IPFS_API = f"{PUMPFUN_API}/ipfs"
+# Pump.fun API endpoints (Official PumpPortal documentation)
+# Step 1: Upload metadata to pump.fun (NOT pumpportal.fun!)
+# Step 2: Create token via pumpportal.fun/api/trade with 'create' action
+PUMPFUN_IPFS_API = "https://pump.fun/api/ipfs"  # For metadata upload
+PUMPPORTAL_API = "https://pumpportal.fun/api"
+PUMPPORTAL_TRADE_API = f"{PUMPPORTAL_API}/trade"  # For create/buy/sell
 
 class PumpFunReal:
     """Real Pump.fun integration for token creation and trading."""
@@ -40,29 +39,42 @@ class PumpFunReal:
         image_url: str,
         twitter: Optional[str] = None,
         telegram: Optional[str] = None,
-        website: Optional[str] = None
+        website: Optional[str] = None,
+        dev_buy_sol: float = 0.0001  # Initial dev buy (minimum)
     ) -> Optional[str]:
         """
-        Create REAL token on Pump.fun (2025 updated)
+        Create REAL token on Pump.fun via PumpPortal API (Official method)
+        
+        Two-step process:
+        1. Upload metadata to pump.fun/api/ipfs
+        2. Send create transaction to pumpportal.fun/api/trade
         
         Args:
             creator_wallet: Creator's keypair
             name: Token name
             symbol: Token symbol
             description: Token description
-            image_url: Image URL (or file path for upload)
-            twitter: Twitter handle (optional)
+            image_url: Image URL (direct link required)
+            twitter: Twitter link (optional)
             telegram: Telegram link (optional)
             website: Website URL (optional)
+            dev_buy_sol: Initial dev buy amount (default 0.0001 SOL)
         
         Returns:
             Token mint address or None
             
-        Note: Requires 0.02 SOL creation fee (as of Oct 2025)
+        Note: Requires PUMPPORTAL_API_KEY in config
         """
         try:
+            from config import PUMPPORTAL_API_KEY
+            
             print(f"[LAUNCH] Creating token on Pump.fun: {name} ({symbol})")
-            print(f"[INFO] Creation fee: 0.02 SOL (~$3.84 at current rates)")
+            print(f"[INFO] Using official PumpPortal API")
+            
+            if not PUMPPORTAL_API_KEY:
+                print(f"[ERROR] PUMPPORTAL_API_KEY not set in config!")
+                print(f"[ERROR] Get API key from https://pumpportal.fun")
+                return None
             
             # Get creator public key
             try:
@@ -70,93 +82,123 @@ class PumpFunReal:
             except:
                 creator_pubkey = str(creator_wallet.public_key)
             
-            # Step 1: Process image URL
-            metadata_uri = image_url
-            
             # Fix Imgur links (convert page to direct image)
+            processed_image_url = image_url
             if 'imgur.com' in image_url and not image_url.startswith('https://i.imgur.com'):
-                # Convert imgur.com/XXX to i.imgur.com/XXX.png
                 image_id = image_url.split('/')[-1].split('.')[0]
-                metadata_uri = f"https://i.imgur.com/{image_id}.png"
-                print(f"[FIX] Converted Imgur link: {metadata_uri}")
+                processed_image_url = f"https://i.imgur.com/{image_id}.png"
+                print(f"[FIX] Converted Imgur link: {processed_image_url}")
             
-            # Upload metadata to IPFS (if image is local file)
-            if not metadata_uri.startswith('http'):
-                print(f"[UPLOAD] Uploading metadata to IPFS...")
-                metadata_uri = await self._upload_metadata(
-                    name, symbol, description, metadata_uri
-                )
-                if not metadata_uri:
-                    print(f"[ERROR] Metadata upload failed")
-                    return None
+            # STEP 1: Upload metadata to pump.fun/api/ipfs
+            print(f"[STEP 1] Uploading metadata to Pump.fun IPFS...")
             
-            # Step 2: Create token via Pump.fun API
-            print(f"🔨 Creating token on Pump.fun...")
-            
-            payload = {
-                "name": name,
-                "symbol": symbol,
-                "description": description,
-                "image": metadata_uri,
-                "showName": True,
-                "creatorAddress": creator_pubkey
+            form_data = {
+                'name': name,
+                'symbol': symbol,
+                'description': description,
+                'showName': 'true'
             }
             
             if twitter:
-                payload["twitter"] = twitter
+                form_data['twitter'] = twitter
             if telegram:
-                payload["telegram"] = telegram
+                form_data['telegram'] = telegram
             if website:
-                payload["website"] = website
+                form_data['website'] = website
             
-            # Call Pump.fun create API
-            # Note: PumpPortal uses /ipfs for metadata then returns token mint
-            create_endpoint = f"{PUMPFUN_API}/ipfs"
-            print(f"[API] Calling: {create_endpoint}")
-            print(f"[API] Payload: {payload}")
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                try:
-                    response = await client.post(
-                        create_endpoint,
-                        json=payload
-                    )
-                    
-                    print(f"[API] Response status: {response.status_code}")
-                    print(f"[API] Response body: {response.text[:500]}")  # First 500 chars
-                    
-                    if response.status_code != 200:
-                        print(f"[ERROR] Pump.fun API error: {response.status_code}")
-                        print(f"[ERROR] Full response: {response.text}")
-                        print(f"[ERROR] This usually means:")
-                        print(f"   - API endpoint changed or doesn't exist")
-                        print(f"   - Missing API key or authentication")
-                        print(f"   - Invalid parameters")
-                        return None
-                    
-                    result = response.json()
-                    
-                    if "mint" in result:
-                        mint = result["mint"]
-                        print(f"[OK] Token created on Pump.fun!")
-                        print(f"   Mint: {mint}")
-                        print(f"   Name: {name}")
-                        print(f"   Symbol: {symbol}")
-                        print(f"   Bonding curve: {result.get('bondingCurve', 'N/A')}")
-                        return mint
-                    else:
-                        print(f"[ERROR] No 'mint' field in API response")
-                        print(f"[ERROR] Full response: {result}")
-                        print(f"[ERROR] Available fields: {list(result.keys())}")
-                        return None
-                        
-                except httpx.HTTPError as http_err:
-                    print(f"[ERROR] HTTP error occurred: {http_err}")
-                    print(f"[ERROR] This usually means network/connection issue")
+            # Download image and upload as file
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                # Download image
+                print(f"[INFO] Downloading image: {processed_image_url}")
+                img_response = await http_client.get(processed_image_url)
+                if img_response.status_code != 200:
+                    print(f"[ERROR] Failed to download image: {img_response.status_code}")
                     return None
-                except Exception as json_err:
-                    print(f"[ERROR] Failed to parse JSON response: {json_err}")
-                    print(f"[ERROR] Raw response: {response.text}")
+                
+                image_bytes = img_response.content
+                image_filename = processed_image_url.split('/')[-1]
+                if '.' not in image_filename:
+                    image_filename += '.png'
+                
+                # Upload to IPFS
+                files = {'file': (image_filename, image_bytes, 'image/png')}
+                
+                print(f"[API] POST {PUMPFUN_IPFS_API}")
+                ipfs_response = await http_client.post(
+                    PUMPFUN_IPFS_API,
+                    data=form_data,
+                    files=files
+                )
+                
+                print(f"[API] Response status: {ipfs_response.status_code}")
+                
+                if ipfs_response.status_code != 200:
+                    print(f"[ERROR] IPFS upload failed: {ipfs_response.status_code}")
+                    print(f"[ERROR] Response: {ipfs_response.text}")
+                    return None
+                
+                ipfs_result = ipfs_response.json()
+                metadata_uri = ipfs_result.get('metadataUri')
+                
+                if not metadata_uri:
+                    print(f"[ERROR] No metadataUri in IPFS response")
+                    print(f"[ERROR] Response: {ipfs_result}")
+                    return None
+                
+                print(f"[OK] Metadata uploaded!")
+                print(f"   URI: {metadata_uri}")
+            
+            # STEP 2: Create token via pumpportal.fun/api/trade
+            print(f"[STEP 2] Creating token on Pump.fun...")
+            
+            # Generate new mint keypair
+            mint_keypair = Keypair()
+            mint_address = str(mint_keypair.pubkey() if hasattr(mint_keypair, 'pubkey') else mint_keypair.public_key)
+            
+            # Prepare create transaction payload
+            create_payload = {
+                'action': 'create',
+                'tokenMetadata': {
+                    'name': name,
+                    'symbol': symbol,
+                    'uri': metadata_uri
+                },
+                'mint': mint_address,
+                'denominatedInSol': 'true',
+                'amount': dev_buy_sol,
+                'slippage': 10,
+                'priorityFee': 0.0005,
+                'pool': 'pump'
+            }
+            
+            trade_url = f"{PUMPPORTAL_TRADE_API}?api-key={PUMPPORTAL_API_KEY}"
+            print(f"[API] POST {PUMPPORTAL_TRADE_API}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                create_response = await http_client.post(
+                    trade_url,
+                    headers={'Content-Type': 'application/json'},
+                    json=create_payload
+                )
+                
+                print(f"[API] Response status: {create_response.status_code}")
+                
+                if create_response.status_code == 200:
+                    result = create_response.json()
+                    signature = result.get('signature')
+                    
+                    if signature:
+                        print(f"[OK] Token created on Pump.fun!")
+                        print(f"   Mint: {mint_address}")
+                        print(f"   TX: https://solscan.io/tx/{signature}")
+                        return mint_address
+                    else:
+                        print(f"[ERROR] No signature in response")
+                        print(f"[ERROR] Response: {result}")
+                        return None
+                else:
+                    print(f"[ERROR] Create transaction failed: {create_response.status_code}")
+                    print(f"[ERROR] Response: {create_response.text}")
                     return None
                     
         except Exception as e:
