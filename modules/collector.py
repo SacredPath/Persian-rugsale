@@ -49,6 +49,104 @@ class ProfitCollector:
                 print(f"[ERROR] Invalid MAIN_WALLET format: {e}")
                 self.enabled = False
     
+    async def get_collection_preview(self):
+        """
+        Preview how much SOL will be collected (without actually transferring).
+        
+        Returns:
+            dict: Preview with total collectible, per-wallet details, and MAIN_WALLET address
+        """
+        if not self.enabled:
+            return {
+                "success": False,
+                "error": "MAIN_WALLET not configured",
+                "collectible": 0,
+                "details": []
+            }
+        
+        try:
+            # Create fresh AsyncClient
+            self.client = AsyncClient(self.rpc_url)
+            
+            preview = {
+                "success": True,
+                "collectible": 0.0,
+                "wallets_with_funds": 0,
+                "main_wallet": MAIN_WALLET,
+                "details": []
+            }
+            
+            RENT_EXEMPT = 890880  # Solana standard rent-exempt minimum
+            TX_FEE_ESTIMATE = 5000  # ~0.000005 SOL transaction fee
+            RESERVE = RENT_EXEMPT + TX_FEE_ESTIMATE
+            MIN_BALANCE_LAMPORTS = 900000  # 0.0009 SOL minimum
+            
+            wallets_to_check = self.wallets[:NUM_WALLETS]
+            
+            for i, wallet in enumerate(wallets_to_check):
+                try:
+                    # Get wallet address
+                    try:
+                        wallet_addr = str(wallet.pubkey())
+                    except:
+                        wallet_addr = str(wallet.public_key)
+                    
+                    wallet_pubkey = Pubkey.from_string(wallet_addr)
+                    
+                    # Get balance
+                    balance_resp = await self.client.get_balance(wallet_pubkey)
+                    balance_lamports = balance_resp.value if balance_resp.value else 0
+                    balance_sol = balance_lamports / 1e9
+                    
+                    # Calculate collectible amount
+                    if balance_lamports > MIN_BALANCE_LAMPORTS:
+                        collectible_lamports = balance_lamports - RESERVE
+                        collectible_sol = collectible_lamports / 1e9
+                        
+                        if collectible_sol > 0:
+                            preview["collectible"] += collectible_sol
+                            preview["wallets_with_funds"] += 1
+                            preview["details"].append({
+                                "wallet": i,
+                                "address": wallet_addr,
+                                "balance": balance_sol,
+                                "collectible": collectible_sol
+                            })
+                        else:
+                            preview["details"].append({
+                                "wallet": i,
+                                "address": wallet_addr,
+                                "balance": balance_sol,
+                                "collectible": 0,
+                                "reason": "Insufficient after fees"
+                            })
+                    else:
+                        preview["details"].append({
+                            "wallet": i,
+                            "address": wallet_addr,
+                            "balance": balance_sol,
+                            "collectible": 0,
+                            "reason": "Balance too low"
+                        })
+                
+                except Exception as e:
+                    print(f"[WARNING] Could not check wallet {i}: {e}")
+                    preview["details"].append({
+                        "wallet": i,
+                        "error": str(e)
+                    })
+            
+            return preview
+            
+        except Exception as e:
+            print(f"[ERROR] Preview failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "collectible": 0,
+                "details": []
+            }
+    
     @retry_async(max_attempts=2, delay=0.5)
     async def _transfer_single(self, wallet, wallet_index, main_pubkey):
         """
@@ -223,6 +321,22 @@ class ProfitCollector:
                     "collected": 0,
                     "details": []
                 }
+            
+            # SAFETY CHECK: Ensure MAIN_WALLET is not one of the bot wallets
+            main_wallet_str = str(main_pubkey)
+            for i, wallet in enumerate(self.wallets[:NUM_WALLETS]):
+                try:
+                    bot_wallet_addr = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
+                    if bot_wallet_addr == main_wallet_str:
+                        print(f"[ERROR] MAIN_WALLET is bot wallet {i} - cannot transfer to self!")
+                        return {
+                            "success": False,
+                            "error": f"MAIN_WALLET is bot wallet {i} (cannot transfer to self)",
+                            "collected": 0,
+                            "details": []
+                        }
+                except Exception as e:
+                    print(f"[WARNING] Could not verify wallet {i}: {e}")
             
             # Collect from each wallet (with per-wallet retry)
             wallets_to_process = self.wallets[:NUM_WALLETS]

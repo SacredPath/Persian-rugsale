@@ -643,24 +643,64 @@ def handle_callback(call):
                 bot.send_message(chat_id, "[ERROR] MAIN_WALLET not configured in .env")
                 return
             
-            bot.answer_callback_query(call.id, "Collecting profits...")
+            bot.answer_callback_query(call.id, "Checking balances...")
             
-            # Show confirmation
-            confirm_markup = types.InlineKeyboardMarkup()
-            confirm_markup.row(
-                types.InlineKeyboardButton("✅ CONFIRM COLLECT", callback_data="collect_confirm"),
-                types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
-            )
+            # Get collection preview (how much will be collected)
+            import threading
+            from modules.error_handler import format_error, log_error
             
-            from config import NUM_WALLETS
-            bot.send_message(
-                chat_id,
-                f"[COLLECT] CONFIRM PROFIT COLLECTION?\n\n"
-                f"This will send ALL SOL from {NUM_WALLETS} bot wallets to:\n"
-                f"{MAIN_WALLET}\n\n"
-                f"This action cannot be undone!",
-                reply_markup=confirm_markup
-            )
+            def show_preview():
+                try:
+                    preview = asyncio.run(collector.get_collection_preview())
+                    
+                    if not preview["success"]:
+                        bot.send_message(
+                            chat_id,
+                            f"[ERROR] Preview failed: {preview.get('error', 'Unknown error')}"
+                        )
+                        return
+                    
+                    # Check if there's anything to collect
+                    if preview["collectible"] == 0:
+                        bot.send_message(
+                            chat_id,
+                            f"[INFO] NO FUNDS TO COLLECT\n\n"
+                            f"All {len(preview['details'])} bot wallets are empty or below minimum.\n\n"
+                            f"Run a rug first to have profits to collect!"
+                        )
+                        return
+                    
+                    # Show confirmation with preview
+                    confirm_markup = types.InlineKeyboardMarkup()
+                    confirm_markup.row(
+                        types.InlineKeyboardButton("✅ CONFIRM COLLECT", callback_data="collect_confirm"),
+                        types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
+                    )
+                    
+                    from config import NUM_WALLETS
+                    
+                    # Build message with FULL address and collectible amount
+                    message = (
+                        f"[COLLECT] CONFIRM PROFIT COLLECTION?\n\n"
+                        f"PREVIEW:\n"
+                        f"  Total collectible: {preview['collectible']:.6f} SOL\n"
+                        f"  Wallets with funds: {preview['wallets_with_funds']}/{NUM_WALLETS}\n\n"
+                        f"DESTINATION (verify carefully):\n"
+                        f"{MAIN_WALLET}\n\n"
+                        f"[WARNING] This action cannot be undone!\n"
+                        f"Double-check the address above matches your wallet."
+                    )
+                    
+                    bot.send_message(chat_id, message, reply_markup=confirm_markup)
+                    
+                except Exception as e:
+                    log_error(e, "Profit collection preview")
+                    formatted_error = format_error(e, "preview")
+                    bot.send_message(chat_id, formatted_error)
+            
+            thread = threading.Thread(target=show_preview)
+            thread.daemon = True
+            thread.start()
         
         # Collect confirmation
         elif data == "collect_confirm":
@@ -685,7 +725,7 @@ def handle_callback(call):
                             f"Transferred: {result['transferred']}/{total_wallets} wallets\n"
                             f"Total collected: {result['collected']:.6f} SOL\n"
                             f"Failed: {result['failed']}\n\n"
-                            f"Sent to: {MAIN_WALLET[:16]}..."
+                            f"Sent to:\n{MAIN_WALLET}"
                         )
                         
                         # Add details
