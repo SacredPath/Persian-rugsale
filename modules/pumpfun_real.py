@@ -53,6 +53,120 @@ class PumpFunReal:
         self.client = AsyncClient(rpc_url)
         self.rpc_url = rpc_url
     
+    async def _check_bundle_status(self, bundle_id: str, jito_url: str, max_wait_seconds=60):
+        """
+        Poll Jito's bundle status API to check if bundle landed on-chain.
+        More accurate than checking Solana RPC directly.
+        
+        Args:
+            bundle_id: UUID returned from sendBundle
+            jito_url: Jito block engine URL
+            max_wait_seconds: Maximum time to poll (default 60s)
+        
+        Returns:
+            dict with 'landed' (bool) and 'status' (str)
+        """
+        try:
+            import time
+            start_time = time.time()
+            check_interval = 2  # Poll every 2 seconds
+            
+            print(f"[POLLER] Checking bundle status via Jito API...")
+            print(f"[POLLER] Bundle ID: {bundle_id}")
+            print(f"[POLLER] Max wait: {max_wait_seconds}s (checking every {check_interval}s)")
+            
+            poll_count = 0
+            bundle_endpoint = f"{jito_url}/api/v1/bundles"
+            
+            while (time.time() - start_time) < max_wait_seconds:
+                poll_count += 1
+                elapsed = time.time() - start_time
+                
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        response = await client.post(
+                            bundle_endpoint,
+                            headers={'Content-Type': 'application/json'},
+                            json={
+                                'jsonrpc': '2.0',
+                                'id': 1,
+                                'method': 'getBundleStatuses',
+                                'params': [[bundle_id]]  # Array of bundle IDs
+                            }
+                        )
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            
+                            if 'result' in result and 'value' in result['result']:
+                                statuses = result['result']['value']
+                                
+                                if statuses and len(statuses) > 0:
+                                    bundle_status = statuses[0]
+                                    confirmation = bundle_status.get('confirmation_status', 'unknown')
+                                    
+                                    print(f"[POLL {poll_count}] Status: {confirmation} (elapsed: {elapsed:.1f}s)")
+                                    
+                                    # Check for confirmed status
+                                    if confirmation in ['confirmed', 'finalized']:
+                                        print(f"[POLLER] [OK] Bundle CONFIRMED on-chain!")
+                                        
+                                        # Check for transaction errors
+                                        transactions = bundle_status.get('transactions', [])
+                                        for i, tx in enumerate(transactions):
+                                            if 'err' in tx and tx['err']:
+                                                print(f"[POLLER] [WARNING] TX {i} error: {tx['err']}")
+                                        
+                                        return {'landed': True, 'status': confirmation, 'details': bundle_status}
+                                    
+                                    elif confirmation == 'failed':
+                                        print(f"[POLLER] [ERROR] Bundle FAILED")
+                                        
+                                        # Log failure reasons
+                                        transactions = bundle_status.get('transactions', [])
+                                        for i, tx in enumerate(transactions):
+                                            if 'err' in tx and tx['err']:
+                                                print(f"[POLLER] [ERROR] TX {i} error: {tx['err']}")
+                                        
+                                        return {'landed': False, 'status': 'failed', 'details': bundle_status}
+                                    
+                                    elif confirmation == 'pending':
+                                        # Still processing - continue polling
+                                        await asyncio.sleep(check_interval)
+                                        continue
+                                    else:
+                                        # Unknown status
+                                        print(f"[POLLER] Unknown status: {confirmation}")
+                                        await asyncio.sleep(check_interval)
+                                        continue
+                                else:
+                                    # No status yet
+                                    print(f"[POLL {poll_count}] No status yet (elapsed: {elapsed:.1f}s)")
+                                    await asyncio.sleep(check_interval)
+                                    continue
+                            else:
+                                print(f"[POLLER] Invalid response format")
+                                await asyncio.sleep(check_interval)
+                                continue
+                        else:
+                            print(f"[POLLER] HTTP {response.status_code}: {response.text[:100]}")
+                            await asyncio.sleep(check_interval)
+                            continue
+                    
+                except Exception as poll_err:
+                    print(f"[POLLER] Poll error: {poll_err}")
+                    await asyncio.sleep(check_interval)
+                    continue
+            
+            # Timeout reached
+            print(f"[POLLER] [TIMEOUT] Timeout after {max_wait_seconds}s ({poll_count} polls)")
+            print(f"[POLLER] Bundle may still land - check Jito Explorer")
+            return {'landed': False, 'status': 'timeout', 'details': None}
+            
+        except Exception as e:
+            print(f"[POLLER] Fatal error: {e}")
+            return {'landed': False, 'status': 'error', 'details': str(e)}
+    
     async def _wait_for_jito_leader(self, max_wait_seconds=10):
         """
         Wait for a Jito-enabled validator to be the leader.
@@ -471,60 +585,59 @@ class PumpFunReal:
                                 action = bundled_tx_args[i]['action']
                                 print(f"[TX {i}] {action.upper()}: https://solscan.io/tx/{signature}")
                             
-                            # Wait for bundle to land with multiple verification attempts
-                            print(f"[INFO] Waiting for bundle to land on-chain...")
+                            # PROPER JITO POLLER: Check bundle status via Jito API (not Solana RPC)
+                            # This is more accurate and catches errors like "insufficient funds", "expired hash", etc.
+                            bundle_result = await self._check_bundle_status(
+                                bundle_id=bundle_id,
+                                jito_url=jito_url,
+                                max_wait_seconds=60  # Poll for up to 60 seconds (30 polls × 2s)
+                            )
                             
-                            # Try verifying multiple times (bundles can take 20-30s during congestion)
-                            verification_attempts = 6  # 6 attempts × 5s = 30s total wait
-                            bundle_landed = False
-                            
-                            for verify_attempt in range(verification_attempts):
-                                await asyncio.sleep(5)  # Wait 5s between checks
-                                
-                                print(f"[VERIFY {verify_attempt + 1}/{verification_attempts}] Checking if bundle landed...")
-                                try:
-                                    # Convert signature string to Signature object for solders
-                                    if USE_SOLDERS:
-                                        sig_obj = Signature.from_string(tx_signatures[0])
-                                        sig_status = await self.client.get_signature_statuses([sig_obj])
-                                    else:
-                                        # solana-py accepts strings
-                                        sig_status = await self.client.get_signature_statuses([tx_signatures[0]])
-                                    
-                                    if sig_status.value and sig_status.value[0]:
-                                        confirmation_status = sig_status.value[0]
-                                        print(f"[OK] Bundle landed on-chain!")
-                                        print(f"[INFO] Confirmation status: {confirmation_status.confirmation_status if hasattr(confirmation_status, 'confirmation_status') else 'confirmed'}")
-                                        print(f"[OK] Token created successfully!")
-                                        bundle_landed = True
-                                        break
-                                    else:
-                                        if verify_attempt < verification_attempts - 1:
-                                            print(f"[INFO] Not landed yet, waiting 5s more...")
-                                        else:
-                                            print(f"[WARNING] Bundle may not have landed after {verification_attempts * 5}s")
-                                
-                                except Exception as verify_err:
-                                    print(f"[WARNING] Verification error: {verify_err}")
-                                    if verify_attempt < verification_attempts - 1:
-                                        print(f"[INFO] Will retry verification...")
-                            
-                            # Final decision
-                            if bundle_landed:
+                            if bundle_result['landed']:
+                                print(f"[OK] Token created successfully!")
+                                print(f"[OK] Final status: {bundle_result['status']}")
                                 return mint_address
                             else:
-                                print(f"[ERROR] Bundle verification failed - transaction may not have landed")
-                                print(f"[INFO] Check Solscan manually: https://solscan.io/tx/{tx_signatures[0]}")
+                                status = bundle_result['status']
+                                print(f"[ERROR] Bundle did not land: {status}")
                                 
-                                # If this was the last Jito attempt, return None (token creation failed)
-                                if attempt >= max_attempts - 1:
-                                    print(f"[ERROR] All Jito attempts exhausted - token creation FAILED")
-                                    return None
+                                # Log detailed failure info if available
+                                if bundle_result.get('details'):
+                                    print(f"[DEBUG] Bundle details: {bundle_result['details']}")
+                                
+                                # Check Solscan manually
+                                print(f"[INFO] Verify on Solscan: https://solscan.io/tx/{tx_signatures[0]}")
+                                print(f"[INFO] Check Jito Explorer: https://explorer.jito.wtf/bundle/{bundle_id}")
+                                
+                                # Decide whether to retry
+                                if status == 'failed':
+                                    print(f"[ERROR] Bundle FAILED - will not retry this bundle")
+                                    if attempt >= max_attempts - 1:
+                                        print(f"[ERROR] All Jito attempts exhausted - token creation FAILED")
+                                        return None
+                                    else:
+                                        print(f"[RETRY] Creating new bundle with fresh blockhash...")
+                                        await asyncio.sleep(3)
+                                        continue
+                                elif status == 'timeout':
+                                    print(f"[WARNING] Bundle timeout - may still land later")
+                                    if attempt >= max_attempts - 1:
+                                        print(f"[ERROR] All Jito attempts exhausted - token creation FAILED")
+                                        print(f"[INFO] Bundle may land later - check links above")
+                                        return None
+                                    else:
+                                        print(f"[RETRY] Trying new bundle...")
+                                        await asyncio.sleep(3)
+                                        continue
                                 else:
-                                    # Try submitting to Jito again
-                                    print(f"[RETRY] Will submit bundle to Jito again...")
-                                    await asyncio.sleep(3)
-                                    continue
+                                    # Unknown error
+                                    if attempt >= max_attempts - 1:
+                                        print(f"[ERROR] All Jito attempts exhausted - token creation FAILED")
+                                        return None
+                                    else:
+                                        print(f"[RETRY] Trying again...")
+                                        await asyncio.sleep(3)
+                                        continue
                         else:
                             print(f"[ERROR] Jito HTTP error: {jito_response.status_code}")
                             print(f"[ERROR] Response: {jito_response.text}")
