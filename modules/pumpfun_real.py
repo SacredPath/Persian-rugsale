@@ -576,6 +576,19 @@ class PumpFunReal:
                                     return None
                             
                             bundle_id = jito_result.get('result')
+                            
+                            # CRITICAL: Check if bundle_id is valid
+                            if not bundle_id:
+                                print(f"[ERROR] No bundle ID returned from Jito")
+                                print(f"[ERROR] Jito response: {jito_result}")
+                                if attempt < max_attempts - 1:
+                                    backoff = 3 * (2 ** attempt)
+                                    print(f"[RETRY] Waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
+                                    continue
+                                else:
+                                    return None
+                            
                             print(f"[OK] Bundle submitted to Jito!")
                             print(f"[INFO] Bundle ID: {bundle_id}")
                             print(f"[INFO] Tip: {jito_tip_lamports / 1e9:.6f} SOL to {tip_account[:8]}...")
