@@ -131,7 +131,9 @@ async def calculate_mc(client, mint):
         
         # Get token supply
         response = await client.get_token_supply(mint_pubkey)
-        if response.value:
+        
+        # Check if response has value attribute (successful response)
+        if hasattr(response, 'value') and response.value:
             supply = float(response.value.amount) / (10 ** response.value.decimals)
             
             # For real MC, you'd need price from DEX
@@ -141,6 +143,10 @@ async def calculate_mc(client, mint):
             
             # Return supply as proxy (needs price multiplication)
             return int(supply)
+        else:
+            # RPC error or no value
+            print(f"[WARNING] Could not get token supply (token may not exist yet)")
+            return 0
         
         return 0
         

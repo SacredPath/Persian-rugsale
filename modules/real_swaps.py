@@ -39,7 +39,7 @@ def buy_token_simple(wallet, token_mint, sol_amount_lamports, rpc_url, slippage=
         except:
             wallet_addr = str(wallet.public_key)
         
-        print(f"🔄 Buying {token_mint[:8]}... with {sol_amount_lamports / 1e9} SOL")
+        print(f"[BUY] Buying {token_mint[:8]}... with {sol_amount_lamports / 1e9} SOL")
         
         # Step 1: Get quote from Jupiter
         quote_url = "https://quote-api.jup.ag/v6/quote"
@@ -138,7 +138,7 @@ def sell_token_simple(wallet, token_mint, token_amount, rpc_url, slippage=500):
         except:
             wallet_addr = str(wallet.public_key)
         
-        print(f"🔄 Selling {token_amount} of {token_mint[:8]}...")
+        print(f"[SELL] Selling {token_amount} of {token_mint[:8]}...")
         
         # Get quote
         quote_url = "https://quote-api.jup.ag/v6/quote"
