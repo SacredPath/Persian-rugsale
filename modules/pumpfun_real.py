@@ -58,44 +58,54 @@ class PumpFunReal:
         Wait for a Jito-enabled validator to be the leader.
         Prevents 429 errors by only submitting during Jito slots.
         
-        Returns: True if Jito leader found, False if timeout
+        Returns: True if Jito leader found, False if timeout/rate limited
         """
         try:
             import time
             start_time = time.time()
+            check_interval = 2  # Check every 2 seconds
             
-            print(f"[JITO] Waiting for Jito leader slot...")
+            print(f"[JITO] Checking Jito network status...")
             
-            # Check Jito's bundle tip API to verify network status
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                # Simple check: if we can reach Jito's tip endpoint, leaders are active
+            while (time.time() - start_time) < max_wait_seconds:
                 try:
-                    response = await client.post(
-                        f"{JITO_BLOCK_ENGINES[0]}/api/v1/bundles",
-                        headers={'Content-Type': 'application/json'},
-                        json={
-                            'jsonrpc': '2.0',
-                            'id': 1,
-                            'method': 'getTipAccounts',
-                            'params': []
-                        }
-                    )
-                    
-                    if response.status_code == 200:
-                        print(f"[JITO] Leader slot ready - submitting bundle")
-                        return True
-                    elif response.status_code == 429:
-                        # Real rate limit - wait exponentially
-                        wait_time = min(time.time() - start_time + 2, max_wait_seconds)
-                        print(f"[JITO] Rate limited - waiting {wait_time:.1f}s...")
-                        await asyncio.sleep(wait_time)
-                        return False
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        # Check Jito's bundle tip API to verify network status
+                        response = await client.post(
+                            f"{JITO_BLOCK_ENGINES[0]}/api/v1/bundles",
+                            headers={'Content-Type': 'application/json'},
+                            json={
+                                'jsonrpc': '2.0',
+                                'id': 1,
+                                'method': 'getTipAccounts',
+                                'params': []
+                            }
+                        )
+                        
+                        if response.status_code == 200:
+                            print(f"[JITO] Network ready - proceeding with bundle submission")
+                            return True
+                        elif response.status_code == 429:
+                            elapsed = time.time() - start_time
+                            remaining = max_wait_seconds - elapsed
+                            if remaining > check_interval:
+                                print(f"[JITO] Rate limited - waiting {check_interval}s before retry...")
+                                await asyncio.sleep(check_interval)
+                                continue
+                            else:
+                                print(f"[JITO] Rate limit persists - timeout reached")
+                                return False
+                        else:
+                            # Other HTTP errors - proceed anyway
+                            print(f"[JITO] Non-critical error ({response.status_code}) - proceeding")
+                            return True
                     
                 except Exception as e:
-                    print(f"[WARNING] Jito check failed: {e}")
-                    # Proceed anyway - better to try than fail
+                    print(f"[WARNING] Jito check failed: {e} - proceeding anyway")
                     return True
             
+            # Timeout reached
+            print(f"[JITO] Timeout reached ({max_wait_seconds}s) - proceeding anyway")
             return True
             
         except Exception as e:
@@ -251,9 +261,8 @@ class PumpFunReal:
                 'amount': buy_amount_tokens,  # Tokens to buy
                 'slippage': 10,
                 'priorityFee': 0.0005,
-                'pool': 'pump',
-                'computeUnitLimit': 200000,  # 200k CU limit (prevents resource rejections)
-                'computeUnitPrice': 1000  # micro-lamports per CU (~0.0002 SOL priority fee)
+                'pool': 'pump'
+                # computeUnitLimit/Price removed - not documented in PumpPortal API
             })
             
             # Additional transactions: BUY from other wallets (up to 4 more, total 5 max)
@@ -268,9 +277,8 @@ class PumpFunReal:
                     'amount': buy_amount_tokens,
                     'slippage': 50,  # High slippage for atomic bundle (ensures all txs succeed together)
                     'priorityFee': 0.0001,  # Ignored after first tx
-                    'pool': 'pump',
-                    'computeUnitLimit': 200000,  # 200k CU limit (prevents resource rejections)
-                    'computeUnitPrice': 1000  # micro-lamports per CU (~0.0002 SOL priority fee)
+                    'pool': 'pump'
+                    # computeUnitLimit/Price removed - not documented in PumpPortal API
                 })
             
             print(f"[INFO] Bundle: 1 create + {len(buyer_wallets)} buys = {len(bundled_tx_args)} transactions")

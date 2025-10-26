@@ -61,7 +61,7 @@ RETRY_DELAY = 1.0  # seconds
 
 # Rug Params (2025 ULTRA-OPTIMIZED)
 NUM_WALLETS = 4  # Total wallets (3 used in bundle: 1 creator + 2 buyers = safer margin)
-BUNDLE_SOL = 0.0075  # Per wallet (4 × 0.0075 = 0.03 SOL total volume)
+BUNDLE_SOL = 0.0075  # Per wallet (3 × 0.0075 = 0.0225 SOL bundled, 4th wallet for sequential if needed)
 BUNDLE_DELAY = 3.0  # 2-4s random for organic appearance
 WASH_INTERVAL = 30  # Fast monitoring response
 RUG_THRESHOLD_MC = 69000  # USD MC at graduation to PumpSwap
