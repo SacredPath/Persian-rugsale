@@ -69,11 +69,13 @@ class PumpFunReal:
         try:
             import time
             start_time = time.time()
-            check_interval = 2  # Poll every 2 seconds
+            check_interval = 7  # Poll every 7 seconds (reduced from 2s to avoid 429s)
+            consecutive_429s = 0  # Track consecutive rate limits for backoff
             
             print(f"[POLLER] Checking bundle status via Jito API...")
             print(f"[POLLER] Bundle ID: {bundle_id}")
             print(f"[POLLER] Max wait: {max_wait_seconds}s (checking every {check_interval}s)")
+            print(f"[POLLER] Anti-429 mode: exponential backoff enabled")
             
             poll_count = 0
             bundle_endpoint = f"{jito_url}/api/v1/bundles"
@@ -96,6 +98,7 @@ class PumpFunReal:
                         )
                         
                         if response.status_code == 200:
+                            consecutive_429s = 0  # Reset on successful poll
                             result = response.json()
                             
                             if 'result' in result and 'value' in result['result']:
@@ -133,7 +136,14 @@ class PumpFunReal:
                                     elif confirmation == 'pending':
                                         # Still processing - continue polling
                                         await asyncio.sleep(check_interval)
-                                        continue
+                        
+                        elif response.status_code == 429:
+                            consecutive_429s += 1
+                            # Exponential backoff: 10s, 20s, 30s, cap at 30s
+                            backoff_time = min(30, 10 * consecutive_429s)
+                            print(f"[RATE LIMIT] 429 #{consecutive_429s} - backing off {backoff_time}s")
+                            await asyncio.sleep(backoff_time)
+                            continue  # Don't count as a poll, retry immediately after backoff
                                     else:
                                         # Unknown status
                                         print(f"[POLLER] Unknown status: {confirmation}")
@@ -537,8 +547,8 @@ class PumpFunReal:
                     leader_ready = await self._wait_for_jito_leader(max_wait_seconds=10)
                     if not leader_ready and attempt < max_attempts - 1:
                         print(f"[WARNING] Jito not ready - will retry with backoff")
-                        # Exponential backoff: 3s, 6s, 12s...
-                        backoff = 3 * (2 ** attempt)
+                        # Exponential backoff: 10s, 20s, 40s... (anti-congestion)
+                        backoff = 10 * (2 ** attempt)
                         await asyncio.sleep(backoff)
                         continue
                     
@@ -570,8 +580,8 @@ class PumpFunReal:
                                 error_msg = jito_result['error'].get('message', str(jito_result['error']))
                                 print(f"[ERROR] Jito error: {error_msg}")
                                 if attempt < max_attempts - 1:
-                                    # Exponential backoff
-                                    backoff = 3 * (2 ** attempt)
+                                    # Exponential backoff: 10s, 20s, 40s... (anti-congestion)
+                                    backoff = 10 * (2 ** attempt)
                                     print(f"[RETRY] Waiting {backoff}s before retry...")
                                     await asyncio.sleep(backoff)
                                     continue
@@ -585,7 +595,7 @@ class PumpFunReal:
                                 print(f"[ERROR] No bundle ID returned from Jito")
                                 print(f"[ERROR] Jito response: {jito_result}")
                                 if attempt < max_attempts - 1:
-                                    backoff = 3 * (2 ** attempt)
+                                    backoff = 10 * (2 ** attempt)
                                     print(f"[RETRY] Waiting {backoff}s before retry...")
                                     await asyncio.sleep(backoff)
                                     continue
@@ -671,7 +681,7 @@ class PumpFunReal:
                                     return None
                             else:
                                 if attempt < max_attempts - 1:
-                                    backoff = 3 * (2 ** attempt)
+                                    backoff = 10 * (2 ** attempt)
                                     print(f"[RETRY] Waiting {backoff}s before retry...")
                                     await asyncio.sleep(backoff)
                                     continue
@@ -681,7 +691,7 @@ class PumpFunReal:
                 except Exception as jito_err:
                     print(f"[ERROR] Jito submission error: {jito_err}")
                     if attempt < max_attempts - 1:
-                        backoff = 3 * (2 ** attempt)
+                        backoff = 10 * (2 ** attempt)
                         print(f"[RETRY] Waiting {backoff}s before retry...")
                         await asyncio.sleep(backoff)
                         continue

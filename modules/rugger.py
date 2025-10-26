@@ -259,7 +259,7 @@ class RugExecutor:
                     if not leader_ready and attempt < max_attempts - 1:
                         print(f"[WARNING] Jito not ready - will retry with backoff")
                         # Exponential backoff: 3s, 6s, 12s...
-                        backoff = 3 * (2 ** attempt)
+                        backoff = 10 * (2 ** attempt)
                         await asyncio.sleep(backoff)
                         continue
                     
@@ -292,7 +292,7 @@ class RugExecutor:
                                 print(f"[ERROR] Jito error: {error_msg}")
                                 if attempt < max_attempts - 1:
                                     # Exponential backoff
-                                    backoff = 3 * (2 ** attempt)
+                                    backoff = 10 * (2 ** attempt)
                                     print(f"[RETRY] Waiting {backoff}s before retry...")
                                     await asyncio.sleep(backoff)
                                     continue
@@ -306,7 +306,7 @@ class RugExecutor:
                                 print(f"[ERROR] No bundle ID returned from Jito")
                                 print(f"[ERROR] Jito response: {jito_result}")
                                 if attempt < max_attempts - 1:
-                                    backoff = 3 * (2 ** attempt)
+                                    backoff = 10 * (2 ** attempt)
                                     print(f"[RETRY] Waiting {backoff}s before retry...")
                                     await asyncio.sleep(backoff)
                                     continue
@@ -360,7 +360,7 @@ class RugExecutor:
                                         return False
                                     else:
                                         print(f"[RETRY] Creating new bundle with fresh blockhash...")
-                                        backoff = 3 * (2 ** attempt)
+                                        backoff = 10 * (2 ** attempt)
                                         await asyncio.sleep(backoff)
                                         continue
                                 elif status == 'timeout':
@@ -370,7 +370,7 @@ class RugExecutor:
                                         return False
                                     else:
                                         print(f"[RETRY] Trying new bundle...")
-                                        backoff = 3 * (2 ** attempt)
+                                        backoff = 10 * (2 ** attempt)
                                         await asyncio.sleep(backoff)
                                         continue
                                 else:
@@ -379,7 +379,7 @@ class RugExecutor:
                                         print(f"[ERROR] All Jito attempts exhausted")
                                         return False
                                     else:
-                                        backoff = 3 * (2 ** attempt)
+                                        backoff = 10 * (2 ** attempt)
                                         print(f"[RETRY] Trying again in {backoff}s...")
                                         await asyncio.sleep(backoff)
                                         continue
@@ -400,7 +400,7 @@ class RugExecutor:
                                     return False
                             else:
                                 if attempt < max_attempts - 1:
-                                    backoff = 3 * (2 ** attempt)
+                                    backoff = 10 * (2 ** attempt)
                                     print(f"[RETRY] Waiting {backoff}s before retry...")
                                     await asyncio.sleep(backoff)
                                     continue
@@ -410,7 +410,7 @@ class RugExecutor:
                 except Exception as jito_err:
                     print(f"[ERROR] Jito submission error: {jito_err}")
                     if attempt < max_attempts - 1:
-                        backoff = 3 * (2 ** attempt)
+                        backoff = 10 * (2 ** attempt)
                         print(f"[RETRY] Waiting {backoff}s before retry...")
                         await asyncio.sleep(backoff)
                         continue
@@ -418,8 +418,8 @@ class RugExecutor:
                         print(f"[ERROR] All Jito attempts failed")
                         return False
             
-            return False
-            
+                return False
+                
         except Exception as e:
             print(f"[ERROR] Bundled rug failed: {e}")
             import traceback
@@ -461,7 +461,7 @@ class RugExecutor:
                             )
                             
                             if result:
-                                success_count += 1
+                    success_count += 1
                                 print(f"   [{success_count}] [OK] {wallet_addr[:8]}")
                                 
                                 # Small delay between sells
