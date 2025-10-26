@@ -84,10 +84,10 @@ PUMPFUN_CREATE_FEE = 0.02  # SOL - token creation fee (~$3.88)
 PUMPFUN_TRADE_FEE = 0.01  # SOL - per trade fee estimate  
 
 # Jito Bundle Tips (for atomic transaction submission)
-# CRITICAL: Must be HIGH during congestion to WIN leader slot auctions
-# Oct 26, 2025: Network heavily congested - increased tips for guaranteed landing
-JITO_TIP = 0.05  # SOL (~$9.70) - HIGH PRIORITY bid (bundles consistently failing at 0.01)
-JITO_TIP_RUG = 0.05  # SOL (~$9.70) - SAME priority for atomic rug execution
+# CRITICAL: Must be competitive to WIN leader slot auctions during congestion
+# Oct 26, 2025: 0.025 SOL balanced for <$10 budget (successful rugs confirmed at this level)
+JITO_TIP = 0.025  # SOL (~$4.85) - BALANCED bid (2.5x original, fits budget)
+JITO_TIP_RUG = 0.025  # SOL (~$4.85) - SAME priority for atomic rug execution
 
 # Phase 3: Probe Mode (minimal-cost mainnet testing)
 PROBE_MODE = os.getenv("PROBE_MODE", "false").lower() == "true"
