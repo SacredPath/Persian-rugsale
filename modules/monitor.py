@@ -59,7 +59,7 @@ class HypeMonitor:
             wallet = random.choice(self.wallets)
             
             # Small buy (0.001 SOL = 1000000 lamports)
-            print(f"🔄 Wash trade: buying {mint[:8]}...")
+            print(f"[WASH] Buying {mint[:8]}...")
             buy_result = buy_token_simple(wallet, mint, 1000000, self.rpc_url)
             
             if buy_result:
@@ -67,7 +67,7 @@ class HypeMonitor:
                 
                 # Small sell (50% of bought amount)
                 # In production, query actual balance
-                print(f"🔄 Wash trade: selling 50% of {mint[:8]}...")
+                print(f"[WASH] Selling 50% of {mint[:8]}...")
                 # For now, skip sell to avoid complexity
                 
             self.wash_count += 1

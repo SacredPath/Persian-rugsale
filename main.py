@@ -10,7 +10,7 @@ import os
 try:
     import telebot
     from telebot import types
-    from config import TELEGRAM_TOKEN, RPC_URL, MAIN_WALLET
+    from config import TELEGRAM_TOKEN, RPC_URL, MAIN_WALLET, RUG_THRESHOLD_MC
     from modules.bundler import RugBundler
     from modules.monitor import HypeMonitor
     from modules.rugger import RugExecutor
@@ -552,7 +552,35 @@ def handle_callback(call):
             
             mint = active_token[chat_id]
             bot.answer_callback_query(call.id, f"Monitoring {mint[:8]}...")
-            bot.send_message(chat_id, f"[MONITOR] Monitoring active for {mint}")
+            
+            # Get monitoring status
+            status = monitor.get_status()
+            is_monitoring = mint in status['active_tokens']
+            
+            if is_monitoring:
+                # Calculate uptime
+                import time
+                start_time = monitor.monitoring[mint]['start_time']
+                uptime_seconds = int(time.time() - start_time)
+                uptime_minutes = uptime_seconds // 60
+                
+                status_text = (
+                    f"[MONITOR] Status for {mint[:16]}...\n\n"
+                    f"Status: ACTIVE\n"
+                    f"Uptime: {uptime_minutes} minutes\n"
+                    f"Wash trades: {status['wash_count']}\n"
+                    f"Target MC: ${RUG_THRESHOLD_MC:,.0f}\n\n"
+                    f"Bot will auto-rug when target is reached."
+                )
+            else:
+                status_text = (
+                    f"[MONITOR] Status for {mint[:16]}...\n\n"
+                    f"Status: NOT ACTIVE\n"
+                    f"(May have stopped due to error or completion)\n\n"
+                    f"Check console logs for details."
+                )
+            
+            bot.send_message(chat_id, status_text)
         
         # Rug button
         elif data == "rug_active":
