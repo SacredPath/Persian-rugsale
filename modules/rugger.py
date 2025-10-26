@@ -39,6 +39,9 @@ class RugExecutor:
         - Graduated tokens: Use Jupiter (sequential, can't bundle across protocols)
         """
         try:
+            # Create fresh AsyncClient for this call (avoid event loop issues)
+            self.client = AsyncClient(self.rpc_url)
+            
             rug_mode = "PARTIAL (50%)" if partial else "FULL (100%)"
             print(f"[RUG] EXECUTING: {mint[:8]}... Mode: {rug_mode}")
             print(f"[INFO] Checking graduation status...")

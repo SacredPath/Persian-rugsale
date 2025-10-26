@@ -197,6 +197,9 @@ class ProfitCollector:
             }
         
         try:
+            # Create fresh AsyncClient for this call (avoid event loop issues)
+            self.client = AsyncClient(self.rpc_url)
+            
             print(f"[COLLECT] Starting profit collection...")
             print(f"[INFO] Target: {MAIN_WALLET}")
             

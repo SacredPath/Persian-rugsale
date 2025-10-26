@@ -23,6 +23,9 @@ class HypeMonitor:
     async def start(self, mint, chat_id):
         """Simple monitoring loop."""
         try:
+            # Create fresh AsyncClient for this call (avoid event loop issues)
+            self.client = AsyncClient(self.rpc_url)
+            
             print(f"Monitoring {mint}")
             self.monitoring[mint] = {"chat_id": chat_id, "start_time": time.time()}
             

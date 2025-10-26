@@ -102,6 +102,9 @@ class PumpFunReal:
             print(f"[INFO] Using official PumpPortal bundled method")
             print(f"[INFO] Wallets: {len(wallets)} (1 creator + {len(wallets)-1} buyers)")
             
+            # Create fresh AsyncClient for this call (avoid event loop issues)
+            self.client = AsyncClient(self.rpc_url)
+            
             if not wallets or len(wallets) < 1:
                 print(f"[ERROR] Need at least 1 wallet (creator)")
                 return None
@@ -531,6 +534,9 @@ class PumpFunReal:
             Transaction result or None
         """
         try:
+            # Create fresh AsyncClient for this call (avoid event loop issues)
+            self.client = AsyncClient(self.rpc_url)
+            
             # Get buyer public key
             try:
                 buyer_pubkey = str(buyer_wallet.pubkey())
@@ -604,6 +610,9 @@ class PumpFunReal:
             Transaction result or None
         """
         try:
+            # Create fresh AsyncClient for this call (avoid event loop issues)
+            self.client = AsyncClient(self.rpc_url)
+            
             # Get seller public key
             try:
                 seller_pubkey = str(seller_wallet.pubkey())

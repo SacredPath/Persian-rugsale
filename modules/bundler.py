@@ -197,6 +197,9 @@ class RugBundler:
     async def create_and_bundle(self, name, symbol, image_url, description="Meme token on Pump.fun"):
         """Create token with atomic bundled buys (via Jito)."""
         try:
+            # Create fresh AsyncClient for this call (avoid event loop issues)
+            self.client = AsyncClient(self.rpc_url)
+            
             # create_token now does bundled creation + initial buys atomically via Jito
             # No need to call bundle_buy separately!
             mint = await self.create_token(name, symbol, image_url, description)
