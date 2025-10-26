@@ -94,9 +94,27 @@ async def transfer_between_wallets(from_index: int, to_index: int, amount_sol: f
         
         # Send transaction
         print(f"[INFO] Sending transaction...")
+        
+        # Import TxOpts for proper options format
+        try:
+            from solders.rpc.config import TxOpts
+            from solders.commitment_config import CommitmentLevel
+            tx_opts = TxOpts(
+                skip_preflight=False,
+                preflight_commitment=CommitmentLevel.Confirmed
+            )
+        except ImportError:
+            # Fallback for older solana-py
+            from solana.rpc.types import TxOpts
+            from solana.rpc.commitment import Confirmed
+            tx_opts = TxOpts(
+                skip_preflight=False,
+                preflight_commitment=Confirmed
+            )
+        
         send_result = await client.send_raw_transaction(
             bytes(tx),
-            opts={"skipPreflight": False, "preflightCommitment": "confirmed"}
+            opts=tx_opts
         )
         
         if send_result.value:
