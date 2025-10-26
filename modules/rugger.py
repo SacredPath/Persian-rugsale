@@ -254,6 +254,15 @@ class RugExecutor:
             max_attempts = 3
             for attempt in range(max_attempts):
                 try:
+                    # CRITICAL: Wait for Jito leader slot (prevents 429 spam)
+                    leader_ready = await self.pumpfun._wait_for_jito_leader(max_wait_seconds=10)
+                    if not leader_ready and attempt < max_attempts - 1:
+                        print(f"[WARNING] Jito not ready - will retry with backoff")
+                        # Exponential backoff: 3s, 6s, 12s...
+                        backoff = 3 * (2 ** attempt)
+                        await asyncio.sleep(backoff)
+                        continue
+                    
                     # Try different Jito block engines
                     jito_url = random.choice(JITO_BLOCK_ENGINES)
                     bundle_endpoint = f"{jito_url}/api/v1/bundles"
@@ -282,12 +291,28 @@ class RugExecutor:
                                 error_msg = jito_result['error'].get('message', str(jito_result['error']))
                                 print(f"[ERROR] Jito error: {error_msg}")
                                 if attempt < max_attempts - 1:
-                                    await asyncio.sleep(2)
+                                    # Exponential backoff
+                                    backoff = 3 * (2 ** attempt)
+                                    print(f"[RETRY] Waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
                                     continue
                                 else:
                                     return False
                             
                             bundle_id = jito_result.get('result')
+                            
+                            # CRITICAL: Check if bundle_id is valid
+                            if not bundle_id:
+                                print(f"[ERROR] No bundle ID returned from Jito")
+                                print(f"[ERROR] Jito response: {jito_result}")
+                                if attempt < max_attempts - 1:
+                                    backoff = 3 * (2 ** attempt)
+                                    print(f"[RETRY] Waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
+                                    continue
+                                else:
+                                    return False
+                            
                             print(f"[OK] RUG BUNDLE SUBMITTED!")
                             print(f"[INFO] Bundle ID: {bundle_id}")
                             print(f"[INFO] Tip: {JITO_TIP_RUG} SOL to {tip_account[:8]}...")
@@ -297,54 +322,97 @@ class RugExecutor:
                                 wallet_addr = sell_transactions[i]['wallet_addr']
                                 print(f"[TX {i}] {wallet_addr[:8]}: https://solscan.io/tx/{signature}")
                             
-                            # Wait for bundle to land
-                            print(f"[INFO] Waiting 15s for bundle to land on-chain...")
-                            await asyncio.sleep(15)
+                            # PROPER JITO POLLER: Check bundle status via Jito API (not Solana RPC)
+                            bundle_result = await self.pumpfun._check_bundle_status(
+                                bundle_id=bundle_id,
+                                jito_url=jito_url,
+                                max_wait_seconds=60  # Poll for up to 60 seconds
+                            )
                             
-                            # Verify first transaction landed
-                            print(f"[VERIFY] Checking if bundle landed...")
-                            try:
-                                if USE_SOLDERS:
-                                    sig_obj = Signature.from_string(tx_signatures[0])
-                                    sig_status = await self.client.get_signature_statuses([sig_obj])
-                                else:
-                                    sig_status = await self.client.get_signature_statuses([tx_signatures[0]])
+                            if bundle_result['landed']:
+                                print(f"[OK] RUG BUNDLE LANDED!")
+                                print(f"[OK] {len(sell_transactions)} sells executed atomically")
+                                print(f"[OK] Final status: {bundle_result['status']}")
                                 
-                                if sig_status.value and sig_status.value[0]:
-                                    print(f"[OK] RUG BUNDLE LANDED!")
-                                    print(f"[OK] {len(sell_transactions)} sells executed atomically")
-                                    
-                                    # Calculate profits (estimate)
-                                    total_tokens_sold = sum(tx['balance'] for tx in sell_transactions)
-                                    print(f"[PROFIT] Sold {total_tokens_sold:,.0f} tokens")
-                                    print(f"[INFO] Check wallet balances for exact SOL recovered")
-                                    
-                                    return True
-                                else:
-                                    print(f"[WARNING] Bundle may not have landed yet")
-                                    if attempt < max_attempts - 1:
-                                        await asyncio.sleep(3)
-                                        continue
-                                    else:
-                                        print(f"[WARNING] Returning success (check Solscan manually)")
-                                        return True
-                            except Exception as verify_err:
-                                print(f"[WARNING] Could not verify: {verify_err}")
-                                print(f"[INFO] Bundle likely landed, check Solscan")
+                                # Calculate profits (estimate)
+                                total_tokens_sold = sum(tx['balance'] for tx in sell_transactions)
+                                print(f"[PROFIT] Sold {total_tokens_sold:,.0f} tokens")
+                                print(f"[INFO] Check wallet balances for exact SOL recovered")
+                                
                                 return True
+                            else:
+                                status = bundle_result['status']
+                                print(f"[ERROR] Rug bundle did not land: {status}")
+                                
+                                # Log detailed failure info if available
+                                if bundle_result.get('details'):
+                                    print(f"[DEBUG] Bundle details: {bundle_result['details']}")
+                                
+                                # Check Solscan manually
+                                print(f"[INFO] Verify on Solscan: https://solscan.io/tx/{tx_signatures[0]}")
+                                print(f"[INFO] Check Jito Explorer: https://explorer.jito.wtf/bundle/{bundle_id}")
+                                
+                                # Decide whether to retry
+                                if status == 'failed':
+                                    print(f"[ERROR] Bundle FAILED - will not retry this bundle")
+                                    if attempt >= max_attempts - 1:
+                                        print(f"[ERROR] All Jito attempts exhausted - rug FAILED")
+                                        return False
+                                    else:
+                                        print(f"[RETRY] Creating new bundle with fresh blockhash...")
+                                        backoff = 3 * (2 ** attempt)
+                                        await asyncio.sleep(backoff)
+                                        continue
+                                elif status == 'timeout':
+                                    print(f"[WARNING] Bundle timeout - may still land later")
+                                    if attempt >= max_attempts - 1:
+                                        print(f"[WARNING] Rug execution uncertain - check links above")
+                                        return False
+                                    else:
+                                        print(f"[RETRY] Trying new bundle...")
+                                        backoff = 3 * (2 ** attempt)
+                                        await asyncio.sleep(backoff)
+                                        continue
+                                else:
+                                    # Unknown error
+                                    if attempt >= max_attempts - 1:
+                                        print(f"[ERROR] All Jito attempts exhausted")
+                                        return False
+                                    else:
+                                        backoff = 3 * (2 ** attempt)
+                                        print(f"[RETRY] Trying again in {backoff}s...")
+                                        await asyncio.sleep(backoff)
+                                        continue
                         else:
                             print(f"[ERROR] Jito HTTP error: {jito_response.status_code}")
                             print(f"[ERROR] Response: {jito_response.text}")
-                            if attempt < max_attempts - 1:
-                                await asyncio.sleep(2)
-                                continue
+                            
+                            # Handle 429 rate limit specially
+                            if jito_response.status_code == 429:
+                                if attempt < max_attempts - 1:
+                                    # Longer backoff for rate limits
+                                    backoff = 5 * (2 ** attempt)  # 5s, 10s, 20s
+                                    print(f"[429] Rate limited - waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
+                                    continue
+                                else:
+                                    print(f"[ERROR] Rate limit persists - rug execution failed")
+                                    return False
                             else:
-                                return False
+                                if attempt < max_attempts - 1:
+                                    backoff = 3 * (2 ** attempt)
+                                    print(f"[RETRY] Waiting {backoff}s before retry...")
+                                    await asyncio.sleep(backoff)
+                                    continue
+                                else:
+                                    return False
                 
                 except Exception as jito_err:
                     print(f"[ERROR] Jito submission error: {jito_err}")
                     if attempt < max_attempts - 1:
-                        await asyncio.sleep(2)
+                        backoff = 3 * (2 ** attempt)
+                        print(f"[RETRY] Waiting {backoff}s before retry...")
+                        await asyncio.sleep(backoff)
                         continue
                     else:
                         print(f"[ERROR] All Jito attempts failed")
