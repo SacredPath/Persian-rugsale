@@ -259,14 +259,20 @@ class PumpFunReal:
             import base58
             try:
                 from solders.transaction import VersionedTransaction
-                from solders.rpc.config import TxOpts
+                import solders.rpc.config
                 from solders.commitment_config import CommitmentLevel
+                TxOpts = solders.rpc.config.TxOpts
                 USE_SOLDERS = True
-            except ImportError:
-                from solana.transaction import VersionedTransaction
-                from solana.rpc.types import TxOpts
-                from solana.rpc.commitment import Confirmed
-                USE_SOLDERS = False
+            except (ImportError, AttributeError) as e:
+                # Fallback to legacy solana-py
+                try:
+                    from solana.transaction import Transaction
+                    from solana.rpc.types import TxOpts
+                    from solana.rpc.commitment import Confirmed
+                    USE_SOLDERS = False
+                except ImportError:
+                    print(f"[ERROR] Failed to import transaction libraries: {e}")
+                    return None
             
             print(f"[SEQUENTIAL] Creating token: {name} ({symbol})")
             print(f"[INFO] Mode: Direct RPC (no Jito bundles)")
@@ -400,8 +406,14 @@ class PumpFunReal:
             # Sign and submit CREATE transaction
             create_tx_base58 = encoded_transactions[0]
             tx_bytes = base58.b58decode(create_tx_base58)
-            versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
-            versioned_tx.sign([mint_keypair, creator_wallet])
+            
+            if USE_SOLDERS:
+                versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
+                versioned_tx.sign([mint_keypair, creator_wallet])
+            else:
+                # Legacy solana-py: use raw bytes for send_raw_transaction
+                print(f"[WARNING] Using legacy transaction handling")
+                versioned_tx = None  # Will send raw bytes directly
             
             print(f"[INFO] Submitting CREATE transaction via direct RPC...")
             
@@ -416,10 +428,17 @@ class PumpFunReal:
                     preflight_commitment=Confirmed
                 )
             
-            send_result = await self.client.send_raw_transaction(
-                bytes(versioned_tx),
-                opts=tx_opts
-            )
+            if USE_SOLDERS:
+                send_result = await self.client.send_raw_transaction(
+                    bytes(versioned_tx),
+                    opts=tx_opts
+                )
+            else:
+                # Legacy: send raw bytes
+                send_result = await self.client.send_raw_transaction(
+                    tx_bytes,
+                    opts=tx_opts
+                )
             
             if not send_result.value:
                 print(f"[ERROR] CREATE transaction failed")
@@ -485,13 +504,20 @@ class PumpFunReal:
                             buy_encoded_txs = buy_response.json()
                             buy_tx_base58 = buy_encoded_txs[0]
                             buy_tx_bytes = base58.b58decode(buy_tx_base58)
-                            buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
-                            buy_versioned_tx.sign([wallet])
                             
-                            buy_send_result = await self.client.send_raw_transaction(
-                                bytes(buy_versioned_tx),
-                                opts=tx_opts
-                            )
+                            if USE_SOLDERS:
+                                buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
+                                buy_versioned_tx.sign([wallet])
+                                buy_send_result = await self.client.send_raw_transaction(
+                                    bytes(buy_versioned_tx),
+                                    opts=tx_opts
+                                )
+                            else:
+                                # Legacy: send raw bytes
+                                buy_send_result = await self.client.send_raw_transaction(
+                                    buy_tx_bytes,
+                                    opts=tx_opts
+                                )
                             
                             if buy_send_result.value:
                                 buy_signature = str(buy_send_result.value)
