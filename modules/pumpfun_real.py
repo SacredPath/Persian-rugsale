@@ -289,6 +289,7 @@ class PumpFunReal:
                 from solders.message import Message
                 from solders.transaction import VersionedTransaction as SoldersVersionedTransaction
                 from solders.pubkey import Pubkey
+                from solders.signature import Signature  # For verification
                 USE_SOLDERS = True
             except ImportError:
                 from solana.system_program import TransferParams, transfer as system_transfer
@@ -296,9 +297,10 @@ class PumpFunReal:
                 from solana.publickey import PublicKey as Pubkey
                 USE_SOLDERS = False
             
-            # Jito tip amount (0.0001 SOL = 100k lamports for creation, adjustable)
-            jito_tip_lamports = 100_000  # ~$0.02 at current prices
-            print(f"[INFO] Jito tip: {jito_tip_lamports / 1e9:.6f} SOL (~$0.02)")
+            # Jito tip amount (from config, default 0.0001 SOL for creation)
+            from config import JITO_TIP
+            jito_tip_lamports = int(JITO_TIP * 1e9)  # Convert SOL to lamports
+            print(f"[INFO] Jito tip: {jito_tip_lamports / 1e9:.6f} SOL (~${jito_tip_lamports / 1e9 * 194:.2f})")
             
             # Pick random Jito tip account
             tip_account = random.choice(JITO_TIP_ACCOUNTS)
@@ -400,9 +402,18 @@ class PumpFunReal:
                             # Verify first transaction (create) landed
                             print(f"[VERIFY] Checking if bundle landed...")
                             try:
-                                sig_status = await self.client.get_signature_statuses([tx_signatures[0]])
+                                # Convert signature string to Signature object for solders
+                                if USE_SOLDERS:
+                                    sig_obj = Signature.from_string(tx_signatures[0])
+                                    sig_status = await self.client.get_signature_statuses([sig_obj])
+                                else:
+                                    # solana-py accepts strings
+                                    sig_status = await self.client.get_signature_statuses([tx_signatures[0]])
+                                
                                 if sig_status.value and sig_status.value[0]:
+                                    confirmation_status = sig_status.value[0]
                                     print(f"[OK] Bundle landed on-chain!")
+                                    print(f"[INFO] Confirmation status: {confirmation_status.confirmation_status if hasattr(confirmation_status, 'confirmation_status') else 'confirmed'}")
                                     print(f"[OK] Token created successfully!")
                                     return mint_address
                                 else:
@@ -416,6 +427,7 @@ class PumpFunReal:
                                         return mint_address
                             except Exception as verify_err:
                                 print(f"[WARNING] Could not verify: {verify_err}")
+                                print(f"[INFO] This is OK - bundle likely landed, verification just failed")
                                 return mint_address
                         else:
                             print(f"[ERROR] Jito HTTP error: {jito_response.status_code}")

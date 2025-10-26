@@ -67,6 +67,6 @@ TEST_RESULTS.txt
 PHASE*.txt
 ERROR*.txt
 
-# Documentation (optional - uncomment if you don't want to share)
-# *.md
-# *.txt
+# Documentation (never push to GitHub)
+*.md
+*.txt

@@ -82,7 +82,10 @@ STALL_TIMEOUT = 300  # 5 minutes - auto-abort if no MC growth
 # Pump.fun Fees (2025 rates)
 PUMPFUN_CREATE_FEE = 0.02  # SOL - token creation fee (~$3.88)
 PUMPFUN_TRADE_FEE = 0.01  # SOL - per trade fee estimate  
-JITO_TIP = 0.0005  # SOL - Reduced from 0.001 for 50% tip savings
+
+# Jito Bundle Tips (for atomic transaction submission)
+JITO_TIP = 0.0001  # SOL (~$0.02) - Minimum viable tip for creation bundles
+JITO_TIP_RUG = 0.0005  # SOL (~$0.10) - Higher tip for rug bundles (critical for best prices)
 
 # Phase 3: Probe Mode (minimal-cost mainnet testing)
 PROBE_MODE = os.getenv("PROBE_MODE", "false").lower() == "true"
