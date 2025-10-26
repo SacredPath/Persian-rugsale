@@ -449,6 +449,8 @@ def handle_callback(call):
             bot.send_message(chat_id, f"[INFO] 4 wallets will buy sequentially (optimized for <$10)")
             
             try:
+                from modules.error_handler import format_error, log_error
+                
                 mint = asyncio.run(bundler.create_and_bundle(name, symbol, image_url, description))
                 
                 if mint:
@@ -483,18 +485,27 @@ def handle_callback(call):
                             try:
                                 asyncio.run(monitor.start(mint, chat_id))
                             except Exception as e:
-                                print(f"[ERROR] Monitor background task failed: {e}")
+                                log_error(e, f"Monitor background task for {mint[:8]}")
+                                formatted_error = format_error(e, "monitoring")
+                                bot.send_message(chat_id, f"[WARNING] Monitor stopped: {formatted_error}")
                         
                         monitor_thread = threading.Thread(target=run_monitor, daemon=True)
                         monitor_thread.start()
                         print(f"[INFO] Monitoring started in background for {mint[:8]}...")
                     except Exception as monitor_error:
-                        bot.send_message(chat_id, f"[WARNING] Monitor failed to start: {monitor_error}")
+                        log_error(monitor_error, "Monitor thread creation")
+                        formatted_error = format_error(monitor_error, "monitor setup")
+                        bot.send_message(chat_id, formatted_error)
                 else:
-                    bot.send_message(chat_id, f"[ERROR] Launch failed")
+                    bot.send_message(chat_id, f"[ERROR] Launch failed\n\nToken creation returned no mint address.\nCheck console logs for details.")
                     
             except Exception as e:
-                bot.send_message(chat_id, f"[ERROR] Launch failed: {e}")
+                # Log detailed error to console
+                log_error(e, f"Token launch: {name} ({symbol})")
+                
+                # Send user-friendly error to Telegram
+                formatted_error = format_error(e, "token launch")
+                bot.send_message(chat_id, formatted_error + "\n\nTip: Check wallet balances and RPC connection")
         
         # Launch cancel
         elif data == "launch_cancel":
@@ -558,14 +569,25 @@ def handle_callback(call):
             bot.answer_callback_query(call.id, "Rugging...")
             bot.send_message(chat_id, f"[RUG] Executing for {mint}...")
             
-            success = asyncio.run(rugger.execute(mint))
-            
-            if success:
-                bot.send_message(chat_id, f"[OK] RUG SUCCESSFULLY EXECUTED {mint}")
-                # Clear active token after rug
-                del active_token[chat_id]
-            else:
-                bot.send_message(chat_id, f"[ERROR] Rug failed for {mint}")
+            try:
+                from modules.error_handler import format_error, log_error
+                
+                success = asyncio.run(rugger.execute(mint))
+                
+                if success:
+                    bot.send_message(chat_id, f"[OK] RUG SUCCESSFULLY EXECUTED\n\nMint: {mint}\n\nProfits are in bot wallets.\nUse 'Collect Profits' to send to main wallet.")
+                    # Clear active token after rug
+                    del active_token[chat_id]
+                else:
+                    bot.send_message(chat_id, f"[ERROR] Rug execution failed\n\nMint: {mint}\n\nCheck console logs for details.\n\nTip: Verify token has balance to sell")
+                    
+            except Exception as e:
+                # Log detailed error to console
+                log_error(e, f"Rug execution for {mint}")
+                
+                # Send user-friendly error to Telegram
+                formatted_error = format_error(e, "rug execution")
+                bot.send_message(chat_id, formatted_error + f"\n\nMint: {mint}")
         
         # Collect Profits button
         elif data == "collect_profits":
@@ -602,6 +624,8 @@ def handle_callback(call):
             bot.send_message(chat_id, "[COLLECT] Starting profit collection...")
             
             import threading
+            from modules.error_handler import format_error, log_error
+            
             def run_collect():
                 try:
                     result = asyncio.run(collector.collect_all())
@@ -628,12 +652,18 @@ def handle_callback(call):
                         
                         bot.send_message(chat_id, message)
                     else:
-                        error_msg = result.get("error", "Unknown error")
-                        bot.send_message(chat_id, f"[ERROR] Collection failed: {error_msg}")
+                        # Format error with context
+                        error_msg = result.get("error", "Collection failed (no error details)")
+                        formatted_error = f"[ERROR] Profit Collection Failed\n\n{error_msg}\n\nTip: Check wallet balances with 'Check Wallets' button"
+                        bot.send_message(chat_id, formatted_error)
                         
                 except Exception as e:
-                    bot.send_message(chat_id, f"[ERROR] Collection failed: {e}")
-                    print(f"[ERROR] Collect thread error: {e}")
+                    # Log detailed error to console
+                    log_error(e, "Profit collection thread")
+                    
+                    # Send user-friendly error to Telegram
+                    formatted_error = format_error(e, "profit collection")
+                    bot.send_message(chat_id, formatted_error)
             
             collect_thread = threading.Thread(target=run_collect, daemon=True)
             collect_thread.start()
@@ -761,6 +791,8 @@ def handle_status_check(chat_id):
         bot.send_message(chat_id, f"[ERROR] Status check failed: {e}")
 
 if __name__ == "__main__":
+    from modules.error_handler import log_error
+    
     print("Simple Rug Bot Starting...")
     
     # Start keep-alive web server for 24/7 uptime
@@ -771,7 +803,19 @@ if __name__ == "__main__":
         print(f"[WARNING] Keep-alive server failed to start: {e}")
         print("[INFO] Bot will still run but may stop on Replit free tier")
     
+    # Start bot with comprehensive error handling
     try:
-        bot.polling(none_stop=True)
+        print("[INFO] Starting Telegram bot polling...")
+        bot.polling(none_stop=True, timeout=60)
+    except KeyboardInterrupt:
+        print("\n[INFO] Bot stopped by user (Ctrl+C)")
+        sys.exit(0)
     except Exception as e:
-        print(f"Bot failed: {e}")
+        log_error(e, "Bot polling loop")
+        print("\n[CRITICAL] Bot crashed! See error above.")
+        print("[INFO] Common causes:")
+        print("  - TELEGRAM_TOKEN invalid or expired")
+        print("  - Network connection lost")
+        print("  - Multiple bot instances running (port conflict)")
+        print("\n[INFO] Try restarting with: pkill -9 python && python main.py")
+        sys.exit(1)
