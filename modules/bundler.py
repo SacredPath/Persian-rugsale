@@ -10,7 +10,6 @@ from .utils import generate_wallets, load_wallets
 from .retry_utils import retry_async
 from .real_swaps import buy_token_simple, sell_token_simple
 from .real_token import create_simple_token, get_token_balance_simple
-from .real_bundle import submit_jito_bundle, create_bundle
 from .pumpfun_real import PumpFunReal
 from config import NUM_WALLETS, BUNDLE_SOL
 
