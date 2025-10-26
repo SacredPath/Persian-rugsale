@@ -17,7 +17,25 @@ async def test_collect():
         print("[ERROR] Collector disabled! Check MAIN_WALLET in Replit Secrets")
         return
     
-    print("\n[TEST] Running collection...")
+    # Test preview first
+    print("\n[TEST] Running preview...")
+    preview = await collector.get_collection_preview()
+    
+    print("\n[TEST] Preview Result:")
+    print(f"  Success: {preview['success']}")
+    print(f"  Collectible: {preview.get('collectible', 0):.6f} SOL")
+    print(f"  Wallets with funds: {preview.get('wallets_with_funds', 0)}")
+    
+    if not preview['success']:
+        print(f"  Error: {preview.get('error', 'Unknown')}")
+        print("\n[TEST] Preview failed - skipping collection")
+        return
+    
+    if preview['collectible'] == 0:
+        print("\n[TEST] No funds to collect - skipping collection")
+        return
+    
+    print("\n[TEST] Running actual collection...")
     result = await collector.collect_all()
     
     print("\n[TEST] Result:")
