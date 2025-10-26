@@ -7,14 +7,15 @@ from solana.rpc.async_api import AsyncClient
 # Import system program and transaction with fallback
 try:
     from solders.system_program import TransferParams, transfer
-    from solders.transaction import Transaction
+    from solders.message import Message
+    from solders.transaction import VersionedTransaction as SoldersVersionedTransaction
     from solders.keypair import Keypair
     from solders.pubkey import Pubkey
     USE_SOLDERS = True
 except ImportError:
     # Fallback for older solana-py versions
     from solana.system_program import TransferParams, transfer
-    from solana.transaction import Transaction
+    from solana.transaction import Transaction as LegacyTransaction
     from solana.keypair import Keypair
     from solana.publickey import PublicKey as Pubkey
     USE_SOLDERS = False
@@ -123,9 +124,21 @@ class ProfitCollector:
                 )
             )
             
-            # Build and sign transaction
-            tx = Transaction([transfer_ix], wallet_pubkey, recent_blockhash)
-            tx.sign([wallet])
+            # Build and sign transaction (different for solders vs legacy)
+            if USE_SOLDERS:
+                # Solders: Use Message and VersionedTransaction
+                message = Message.new_with_blockhash(
+                    [transfer_ix],
+                    wallet_pubkey,
+                    recent_blockhash
+                )
+                tx = SoldersVersionedTransaction(message, [wallet])
+            else:
+                # Legacy: Use Transaction with add() and sign()
+                tx = LegacyTransaction()
+                tx.recent_blockhash = recent_blockhash
+                tx.add(transfer_ix)
+                tx.sign(wallet)
             
             # Send transaction
             send_result = await self.client.send_raw_transaction(
@@ -155,8 +168,15 @@ class ProfitCollector:
         
         except Exception as e:
             print(f"   [{wallet_index}] [ERROR] {e}")
+            # Try to get wallet address for error reporting
+            try:
+                wallet_addr = str(wallet.pubkey() if hasattr(wallet, 'pubkey') else wallet.public_key)
+            except:
+                wallet_addr = "unknown"
+            
             return {
                 "wallet": wallet_index,
+                "address": wallet_addr,
                 "status": "error",
                 "reason": str(e)
             }
@@ -185,6 +205,7 @@ class ProfitCollector:
                 "collected": 0.0,
                 "transferred": 0,
                 "failed": 0,
+                "total_wallets": 0,  # Will be set after processing
                 "details": []
             }
             
@@ -201,7 +222,11 @@ class ProfitCollector:
                 }
             
             # Collect from each wallet (with per-wallet retry)
-            for i, wallet in enumerate(self.wallets[:NUM_WALLETS]):
+            wallets_to_process = self.wallets[:NUM_WALLETS]
+            num_wallets_processed = len(wallets_to_process)
+            results["total_wallets"] = num_wallets_processed
+            
+            for i, wallet in enumerate(wallets_to_process):
                 result = await self._transfer_single(wallet, i, main_pubkey)
                 
                 results["details"].append(result)
@@ -214,7 +239,7 @@ class ProfitCollector:
             
             # Summary
             print(f"\n[COLLECT] Complete:")
-            print(f"   Transferred: {results['transferred']}/{NUM_WALLETS}")
+            print(f"   Transferred: {results['transferred']}/{num_wallets_processed}")
             print(f"   Failed: {results['failed']}")
             print(f"   Total collected: {results['collected']:.6f} SOL")
             

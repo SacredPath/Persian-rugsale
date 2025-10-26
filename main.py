@@ -624,10 +624,11 @@ def handle_callback(call):
                 types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
             )
             
+            from config import NUM_WALLETS
             bot.send_message(
                 chat_id,
                 f"[COLLECT] CONFIRM PROFIT COLLECTION?\n\n"
-                f"This will send ALL SOL from 4 bot wallets to:\n"
+                f"This will send ALL SOL from {NUM_WALLETS} bot wallets to:\n"
                 f"{MAIN_WALLET}\n\n"
                 f"This action cannot be undone!",
                 reply_markup=confirm_markup
@@ -650,10 +651,10 @@ def handle_callback(call):
                     result = asyncio.run(collector.collect_all())
                     
                     if result["success"]:
-                        from config import NUM_WALLETS
+                        total_wallets = result.get('total_wallets', result['transferred'] + result.get('failed', 0))
                         message = (
                             f"[OK] PROFIT COLLECTION COMPLETE!\n\n"
-                            f"Transferred: {result['transferred']}/{NUM_WALLETS} wallets\n"
+                            f"Transferred: {result['transferred']}/{total_wallets} wallets\n"
                             f"Total collected: {result['collected']:.6f} SOL\n"
                             f"Failed: {result['failed']}\n\n"
                             f"Sent to: {MAIN_WALLET[:16]}..."
