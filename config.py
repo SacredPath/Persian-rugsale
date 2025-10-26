@@ -70,10 +70,10 @@ TARGET_SUPPLY_GRAB = 0.15  # 15% supply grab (realistic)
 # Cost Breakdown (at $194/SOL):
 # - Token creation: 0.02 SOL (~$3.88)
 # - Buys (4 wallets): 0.03 SOL (~$5.82)
-# - Jito tip (creation): 0.0001 SOL (~$0.02)
+# - Jito tip (creation): 0.001 SOL (~$0.19) - INCREASED for congestion
 # - Trade fees (1.25%): 0.000375 SOL (~$0.07)
 # - Network fees: 0.00005 SOL (~$0.01)
-# TOTAL: ~0.050425 SOL (~$9.78) ✅ WITHIN $10 BUDGET!
+# TOTAL: ~0.051325 SOL (~$9.96) ✅ STILL WITHIN $10 BUDGET!
 
 # Volume monitoring & abort logic (prevent losses on stalled tokens)
 MIN_REAL_VOLUME = 0.05  # Minimum 0.05 SOL real buys to continue monitoring
@@ -85,8 +85,8 @@ PUMPFUN_TRADE_FEE = 0.01  # SOL - per trade fee estimate
 
 # Jito Bundle Tips (for atomic transaction submission)
 # During network congestion, higher tips = better success rate
-JITO_TIP = 0.0005  # SOL (~$0.10) - Increased for better bundle landing during congestion
-JITO_TIP_RUG = 0.001  # SOL (~$0.20) - Higher tip for rug bundles (critical for best prices)
+JITO_TIP = 0.001  # SOL (~$0.19) - 10x BASE for PRIORITY during heavy congestion
+JITO_TIP_RUG = 0.002  # SOL (~$0.39) - 2x creation tip for MAXIMUM rug priority
 
 # Phase 3: Probe Mode (minimal-cost mainnet testing)
 PROBE_MODE = os.getenv("PROBE_MODE", "false").lower() == "true"
