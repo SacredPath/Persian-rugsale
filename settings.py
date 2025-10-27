@@ -84,7 +84,7 @@ PUMPFUN_CREATE_FEE = 0.02  # SOL - token creation fee (~$3.88)
 PUMPFUN_TRADE_FEE = 0.01  # SOL - per trade fee estimate  
 
 # Jito Bundle Configuration
-USE_JITO_BUNDLES = False  # Toggle: True = atomic bundles, False = sequential direct RPC (more reliable during congestion)
+USE_JITO_BUNDLES = True   # Toggle: True = atomic bundles, False = sequential direct RPC (more reliable during congestion)
                           # NOTE: Rugs ALWAYS use Jito bundles regardless of this setting (atomicity critical for MEV protection)
 
 # Jito Bundle Tips
