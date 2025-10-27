@@ -90,9 +90,9 @@ USE_JITO_BUNDLES = True   # Toggle: True = atomic bundles, False = sequential di
 # Jito Bundle Tips
 # Used for: Token creation (if USE_JITO_BUNDLES = True) AND rug execution (ALWAYS)
 # CRITICAL: Must be competitive to WIN leader slot auctions during congestion
-# Reduced to 0.003 SOL for cost savings (may result in slower bundle landing)
-JITO_TIP = 0.003  # SOL (~$0.58) - For token creation bundles (if enabled)
-JITO_TIP_RUG = 0.003  # SOL (~$0.58) - For rug execution (ALWAYS used, atomicity critical)
+# Oct 27, 2025: 0.03 SOL increased for better block inclusion priority
+JITO_TIP = 0.03  # SOL (~$5.82) - For token creation bundles (if enabled)
+JITO_TIP_RUG = 0.03  # SOL (~$5.82) - For rug execution (ALWAYS used, atomicity critical)
 
 # Phase 3: Probe Mode (minimal-cost mainnet testing)
 PROBE_MODE = os.getenv("PROBE_MODE", "false").lower() == "true"
