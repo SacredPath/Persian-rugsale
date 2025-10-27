@@ -408,15 +408,17 @@ class PumpFunReal:
             versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
             
             # Sign with solders API
-            # Get the serialized message bytes (what we actually sign)
-            message_bytes = bytes(versioned_tx.message.serialize())
+            # Get the message bytes (solders messages convert directly to bytes)
+            message_bytes = bytes(versioned_tx.message)
             
-            # Each keypair signs the message
-            mint_sig = mint_keypair.sign_message(message_bytes)
+            # Sign the message with each keypair
+            # CRITICAL: Signature order MUST match the signer order in the message
+            # PumpPortal creates messages with fee payer (creator) first, then mint authority
             creator_sig = creator_wallet.sign_message(message_bytes)
+            mint_sig = mint_keypair.sign_message(message_bytes)
             
-            # Create a new signed transaction with the signatures
-            versioned_tx = VersionedTransaction.populate(versioned_tx.message, [mint_sig, creator_sig])
+            # Populate transaction with signatures in correct order: [fee_payer, mint_authority]
+            versioned_tx = VersionedTransaction.populate(versioned_tx.message, [creator_sig, mint_sig])
             
             print(f"[INFO] Submitting CREATE transaction via direct RPC...")
             
@@ -496,8 +498,8 @@ class PumpFunReal:
                             buy_tx_bytes = base58.b58decode(buy_tx_base58)
                             buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
                             
-                            # Sign with solders API
-                            buy_message_bytes = bytes(buy_versioned_tx.message.serialize())
+                            # Sign with solders API (message converts directly to bytes)
+                            buy_message_bytes = bytes(buy_versioned_tx.message)
                             buyer_sig = wallet.sign_message(buy_message_bytes)
                             buy_versioned_tx = VersionedTransaction.populate(buy_versioned_tx.message, [buyer_sig])
                             
