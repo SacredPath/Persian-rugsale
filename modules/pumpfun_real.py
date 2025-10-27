@@ -259,10 +259,10 @@ class PumpFunReal:
             import base58
             
             try:
-                # Direct import to avoid ANY config namespace collision
+                # Correct imports for sequential mode
                 from solders.transaction import VersionedTransaction
                 from solders.commitment_config import CommitmentLevel
-                from solders.rpc.config import TxOpts
+                from solana.rpc.types import TxOpts  # TxOpts is in solana-py, not solders!
                 
             except (ImportError, AttributeError, ModuleNotFoundError) as e:
                 print(f"[ERROR] Sequential mode requires 'solders' library")
