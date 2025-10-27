@@ -6,7 +6,7 @@ import asyncio
 import time
 from functools import wraps
 from typing import Callable, Any, Optional
-from config import MAX_RETRIES, RETRY_DELAY
+from bot_config import MAX_RETRIES, RETRY_DELAY
 
 class RetryError(Exception):
     """Raised when all retries are exhausted."""

@@ -22,7 +22,7 @@ except ImportError:
 
 from .utils import load_wallets
 from .retry_utils import retry_async
-from config import MAIN_WALLET, NUM_WALLETS
+from bot_config import MAIN_WALLET, NUM_WALLETS
 
 class ProfitCollector:
     """Collects profits from all bot wallets to main wallet"""

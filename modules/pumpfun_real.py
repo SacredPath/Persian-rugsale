@@ -368,7 +368,7 @@ class PumpFunReal:
                 creator_pubkey = str(creator_wallet.public_key)
             
             # Build CREATE-only transaction via PumpPortal
-            from config import BUNDLE_SOL
+            from bot_config import BUNDLE_SOL
             
             create_tx_args = [{
                 'publicKey': creator_pubkey,
@@ -573,7 +573,7 @@ class PumpFunReal:
             self.client = AsyncClient(self.rpc_url)
             
             # Check if Jito bundles are enabled
-            from config import USE_JITO_BUNDLES
+            from bot_config import USE_JITO_BUNDLES
             jito_enabled = USE_JITO_BUNDLES if use_jito is None else use_jito
             
             if not jito_enabled:
@@ -675,7 +675,7 @@ class PumpFunReal:
             
             # First transaction: CREATE with dev buy
             # CRITICAL: Use SOL amounts (denominatedInSol: true) for predictable costs!
-            from config import BUNDLE_SOL
+            from bot_config import BUNDLE_SOL
             creator_pubkey = str(creator_wallet.pubkey() if hasattr(creator_wallet, 'pubkey') else creator_wallet.public_key)
             bundled_tx_args.append({
                 'publicKey': creator_pubkey,
@@ -792,7 +792,7 @@ class PumpFunReal:
                 USE_SOLDERS = False
             
             # Jito tip amount (from config, default 0.0001 SOL for creation)
-            from config import JITO_TIP
+            from bot_config import JITO_TIP
             jito_tip_lamports = int(JITO_TIP * 1e9)  # Convert SOL to lamports
             print(f"[INFO] Jito tip: {jito_tip_lamports / 1e9:.6f} SOL (~${jito_tip_lamports / 1e9 * 194:.2f})")
             
