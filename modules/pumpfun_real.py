@@ -261,7 +261,6 @@ class PumpFunReal:
             try:
                 # Correct imports for sequential mode
                 from solders.transaction import VersionedTransaction
-                from solders.commitment_config import CommitmentLevel
                 from solana.rpc.types import TxOpts  # TxOpts is in solana-py, not solders!
                 
             except (ImportError, AttributeError, ModuleNotFoundError) as e:
@@ -423,7 +422,7 @@ class PumpFunReal:
             
             tx_opts = TxOpts(
                 skip_preflight=False,
-                preflight_commitment=CommitmentLevel.Confirmed
+                preflight_commitment="confirmed"  # Use string for solana-py TxOpts
             )
             
             send_result = await self.client.send_raw_transaction(
