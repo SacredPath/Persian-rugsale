@@ -449,19 +449,9 @@ class PumpFunReal:
             ]
             versioned_tx = VersionedTransaction.populate(versioned_tx.message, signatures)
             
-            # Verify the signatures
-            print(f"[DEBUG] Transaction has {len(versioned_tx.signatures)} signatures")
-            for i, sig in enumerate(versioned_tx.signatures):
-                print(f"[DEBUG]   Signature {i}: {sig}")
-            
-            # Try to verify
-            try:
-                verify_result = versioned_tx.verify_with_results()
-                print(f"[DEBUG] Signature verification result: {verify_result}")
-            except Exception as e:
-                print(f"[DEBUG] Local verification failed: {e}")
-            
-            print(f"[INFO] Submitting CREATE transaction via direct RPC...")
+            print(f"[DEBUG] Transaction populated with {len(signatures)} signatures")
+            print(f"[DEBUG] Signature: {creator_sig}")
+            print(f"[INFO] Submitting CREATE transaction via direct RPC (RPC is authoritative for verification)...")
             
             tx_opts = TxOpts(
                 skip_preflight=False,
