@@ -3,7 +3,7 @@ Transfer SOL between bot wallets (e.g., wallet_3 -> wallet_0)
 """
 import asyncio
 from solana.rpc.async_api import AsyncClient
-from bot_config import RPC_URL
+from settings import RPC_URL
 from modules.utils import load_wallets
 
 # Import system program and transaction with fallback

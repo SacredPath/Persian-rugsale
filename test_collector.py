@@ -3,7 +3,7 @@ Test collector manually to see detailed errors
 """
 import asyncio
 from modules.collector import ProfitCollector
-from bot_config import RPC_URL
+from settings import RPC_URL
 
 async def test_collect():
     print("\n[TEST] Starting collector test...")

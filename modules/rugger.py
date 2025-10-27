@@ -10,7 +10,7 @@ from .retry_utils import retry_async
 from .real_swaps import sell_token_simple
 from .real_token import get_token_balance_simple
 from .pumpfun_real import PumpFunReal
-from bot_config import NUM_WALLETS, BUNDLE_SOL
+from settings import NUM_WALLETS, BUNDLE_SOL
 
 class RugExecutor:
     def __init__(self, rpc_url):
@@ -75,7 +75,7 @@ class RugExecutor:
             import httpx
             import base58
             import random
-            from bot_config import JITO_TIP_RUG
+            from settings import JITO_TIP_RUG
             
             # Import transaction utilities
             try:
@@ -463,7 +463,7 @@ class RugExecutor:
                             )
                             
                             if result:
-                                success_count += 1
+                    success_count += 1
                                 print(f"   [{success_count}] [OK] {wallet_addr[:8]}")
                                 
                                 # Small delay between sells

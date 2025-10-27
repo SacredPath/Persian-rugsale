@@ -10,7 +10,7 @@ import os
 try:
     import telebot
     from telebot import types
-    from bot_config import TELEGRAM_TOKEN, RPC_URL, MAIN_WALLET, RUG_THRESHOLD_MC
+    from settings import TELEGRAM_TOKEN, RPC_URL, MAIN_WALLET, RUG_THRESHOLD_MC
     from modules.bundler import RugBundler
     from modules.monitor import HypeMonitor
     from modules.rugger import RugExecutor
@@ -107,7 +107,7 @@ def handle_launch(message):
             return
         
         from modules.error_handler import format_error, log_error
-        from bot_config import NUM_WALLETS
+        from settings import NUM_WALLETS
         
         bot.reply_to(message, f"[LAUNCH] Creating {name} ({symbol})...")
         bot.reply_to(message, f"[INFO] {description}")
@@ -462,7 +462,7 @@ def handle_callback(call):
             del launch_wizard[chat_id]
             
             # Launch token
-            from bot_config import NUM_WALLETS
+            from settings import NUM_WALLETS
             bot.send_message(chat_id, f"[LAUNCH] Creating {name} ({symbol})...")
             bot.send_message(chat_id, f"[INFO] {description}")
             bot.send_message(chat_id, f"[INFO] {NUM_WALLETS} wallets will buy sequentially (optimized for <$10)")
@@ -677,7 +677,7 @@ def handle_callback(call):
                         types.InlineKeyboardButton("❌ Cancel", callback_data="cancel")
                     )
                     
-                    from bot_config import NUM_WALLETS
+                    from settings import NUM_WALLETS
                     
                     # Build message with FULL address and collectible amount
                     message = (

@@ -11,7 +11,7 @@ from .retry_utils import retry_async
 from .real_swaps import buy_token_simple, sell_token_simple
 from .real_token import create_simple_token, get_token_balance_simple
 from .pumpfun_real import PumpFunReal
-from bot_config import NUM_WALLETS, BUNDLE_SOL
+from settings import NUM_WALLETS, BUNDLE_SOL
 
 class RugBundler:
     def __init__(self, rpc_url):
@@ -44,7 +44,7 @@ class RugBundler:
             # REDUCED from 4 to 3 for safer bundle size (3 txs + 1 tip = 4 total, well under 5 max)
             wallets_for_bundle = self.wallets[:3]  # Use 3 wallets total
             
-            from bot_config import BUNDLE_SOL
+            from settings import BUNDLE_SOL
             print(f"[INFO] Bundle composition:")
             print(f"   - Wallet 0: Create + buy with {BUNDLE_SOL} SOL")
             print(f"   - Wallet 1-2: Buy with {BUNDLE_SOL} SOL each")
@@ -60,7 +60,7 @@ class RugBundler:
                 except ImportError:
                     from solana.publickey import PublicKey as Pubkey
                 
-                from bot_config import PUMPFUN_CREATE_FEE, BUNDLE_SOL, JITO_TIP, USE_JITO_BUNDLES
+                from settings import PUMPFUN_CREATE_FEE, BUNDLE_SOL, JITO_TIP, USE_JITO_BUNDLES
                 
                 # Define minimum required balances
                 # Only include Jito tip if bundled mode is enabled
@@ -171,7 +171,7 @@ class RugBundler:
         """
         try:
             if amount is None:
-                from bot_config import BUNDLE_SOL, BUNDLE_DELAY
+                from settings import BUNDLE_SOL, BUNDLE_DELAY
                 amount = BUNDLE_SOL
                 delay = BUNDLE_DELAY
             else:

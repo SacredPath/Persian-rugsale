@@ -8,7 +8,7 @@ from telebot import TeleBot
 from solana.rpc.async_api import AsyncClient
 from .utils import calculate_mc, generate_wallets, build_buy_tx, build_sell_tx, load_wallets
 from .retry_utils import retry_async
-from bot_config import WASH_INTERVAL, RUG_THRESHOLD_MC, TELEGRAM_TOKEN, NUM_WALLETS
+from settings import WASH_INTERVAL, RUG_THRESHOLD_MC, TELEGRAM_TOKEN, NUM_WALLETS
 
 class HypeMonitor:
     def __init__(self, rpc_url):
