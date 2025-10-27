@@ -407,6 +407,12 @@ class PumpFunReal:
             tx_bytes = base58.b58decode(create_tx_base58)
             versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
             
+            # DEBUG: Check if transaction is already signed
+            print(f"[DEBUG] Transaction from PumpPortal:")
+            print(f"[DEBUG]   Has {len(versioned_tx.signatures)} signatures")
+            for i, sig in enumerate(versioned_tx.signatures):
+                print(f"[DEBUG]   Signature {i}: {sig}")
+            
             # DEBUG: Print transaction details
             print(f"[DEBUG] Transaction message type: {type(versioned_tx.message)}")
             print(f"[DEBUG] Account keys in message: {len(versioned_tx.message.account_keys)}")
