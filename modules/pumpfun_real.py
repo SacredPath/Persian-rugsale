@@ -426,8 +426,16 @@ class PumpFunReal:
             # Manual signing for solders VersionedTransaction (MessageV0 uses bytes())
             # CRITICAL: PumpPortal pre-builds TX with creator as BOTH payer AND mint authority
             # mint_keypair is a NEW keypair (not yet the authority), so only creator signs
+            from nacl.signing import SigningKey
+            from solders.signature import Signature
+            
             message_bytes = bytes(versioned_tx.message)
-            creator_sig = creator_wallet.sign_message(message_bytes)  # Single sig from creator (authority for both)
+            
+            # Solana transaction signing: Ed25519 over the raw message bytes (NOT hashed)
+            creator_secret = bytes(creator_wallet.secret())[:32]
+            creator_signing_key = SigningKey(creator_secret)
+            creator_sig_bytes = creator_signing_key.sign(message_bytes).signature
+            creator_sig = Signature.from_bytes(creator_sig_bytes)
             
             print(f"[DEBUG] Creator pubkey: {creator_wallet.pubkey()}")
             print(f"[DEBUG] Mint pubkey: {mint_keypair.pubkey()}")
@@ -530,9 +538,15 @@ class PumpFunReal:
                             buy_tx_bytes = base58.b58decode(buy_tx_base58)
                             buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
                             
-                            # Sign with solders (simpler for single signer)
+                            # Sign with PyNaCl (proper Ed25519)
+                            from nacl.signing import SigningKey
+                            from solders.signature import Signature
+                            
                             buy_message_bytes = bytes(buy_versioned_tx.message)
-                            buyer_sig = wallet.sign_message(buy_message_bytes)
+                            buyer_secret = bytes(wallet.secret())[:32]
+                            buyer_signing_key = SigningKey(buyer_secret)
+                            buyer_sig_bytes = buyer_signing_key.sign(buy_message_bytes).signature
+                            buyer_sig = Signature.from_bytes(buyer_sig_bytes)
                             buy_versioned_tx = VersionedTransaction.populate(buy_versioned_tx.message, [buyer_sig])
                             
                             buy_send_result = await self.client.send_raw_transaction(
