@@ -407,18 +407,53 @@ class PumpFunReal:
             tx_bytes = base58.b58decode(create_tx_base58)
             versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
             
+            # DEBUG: Print transaction details
+            print(f"[DEBUG] Transaction message type: {type(versioned_tx.message)}")
+            print(f"[DEBUG] Account keys in message: {len(versioned_tx.message.account_keys)}")
+            for i, key in enumerate(versioned_tx.message.account_keys):
+                key_str = str(key)
+                print(f"[DEBUG]   Account {i}: {key_str}")
+                if key_str == str(creator_wallet.pubkey()):
+                    print(f"[DEBUG]     ^ This is CREATOR wallet")
+                if key_str == str(mint_keypair.pubkey()):
+                    print(f"[DEBUG]     ^ This is MINT keypair")
+            
+            print(f"[DEBUG] Number of signatures required: {versioned_tx.message.header.num_required_signatures}")
+            print(f"[DEBUG] Num readonly signed accounts: {versioned_tx.message.header.num_readonly_signed_accounts}")
+            print(f"[DEBUG] Num readonly unsigned accounts: {versioned_tx.message.header.num_readonly_unsigned_accounts}")
+            print(f"[DEBUG] First {versioned_tx.message.header.num_required_signatures} accounts are signers:")
+            
             # Sign with solders API
-            # Get the message bytes (solders messages convert directly to bytes)
+            # Solana transactions require domain separation: sha256("solana-tx" || message_bytes)
+            import hashlib
             message_bytes = bytes(versioned_tx.message)
             
-            # Sign the message with each keypair
-            # CRITICAL: Signature order MUST match the signer order in the message
-            # PumpPortal creates messages with fee payer (creator) first, then mint authority
-            creator_sig = creator_wallet.sign_message(message_bytes)
-            mint_sig = mint_keypair.sign_message(message_bytes)
+            # Create the Solana transaction hash with domain separation
+            tx_hash = hashlib.sha256(b"solana-tx" + message_bytes).digest()
+            print(f"[DEBUG] Transaction hash: {tx_hash.hex()}")
             
-            # Populate transaction with signatures in correct order: [fee_payer, mint_authority]
+            # Sign the transaction hash
+            creator_sig = creator_wallet.sign_message(tx_hash)
+            mint_sig = mint_keypair.sign_message(tx_hash)
+            
+            print(f"[DEBUG] Creator pubkey: {creator_wallet.pubkey()}")
+            print(f"[DEBUG] Mint pubkey: {mint_keypair.pubkey()}")
+            print(f"[DEBUG] Trying signature order: [creator, mint]")
+            
+            # Populate transaction with signatures
             versioned_tx = VersionedTransaction.populate(versioned_tx.message, [creator_sig, mint_sig])
+            
+            # Verify the signatures
+            print(f"[DEBUG] Transaction has {len(versioned_tx.signatures)} signatures")
+            for i, sig in enumerate(versioned_tx.signatures):
+                print(f"[DEBUG]   Signature {i}: {sig}")
+            
+            # Try to verify
+            try:
+                verify_result = versioned_tx.verify_with_results()
+                print(f"[DEBUG] Signature verification result: {verify_result}")
+            except Exception as e:
+                print(f"[DEBUG] Local verification failed: {e}")
             
             print(f"[INFO] Submitting CREATE transaction via direct RPC...")
             
@@ -498,9 +533,11 @@ class PumpFunReal:
                             buy_tx_bytes = base58.b58decode(buy_tx_base58)
                             buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
                             
-                            # Sign with solders API (message converts directly to bytes)
+                            # Sign with solders API (Solana tx requires domain separation)
+                            import hashlib
                             buy_message_bytes = bytes(buy_versioned_tx.message)
-                            buyer_sig = wallet.sign_message(buy_message_bytes)
+                            buy_tx_hash = hashlib.sha256(b"solana-tx" + buy_message_bytes).digest()
+                            buyer_sig = wallet.sign_message(buy_tx_hash)
                             buy_versioned_tx = VersionedTransaction.populate(buy_versioned_tx.message, [buyer_sig])
                             
                             buy_send_result = await self.client.send_raw_transaction(
