@@ -407,15 +407,15 @@ class PumpFunReal:
             tx_bytes = base58.b58decode(create_tx_base58)
             versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
             
-            # Sign with solders API (different from solana-py)
-            from solders.signature import Signature
-            message_bytes = bytes(versioned_tx.message)
+            # Sign with solders API
+            # Get the serialized message bytes (what we actually sign)
+            message_bytes = bytes(versioned_tx.message.serialize())
             
-            # Create signatures for mint and creator
+            # Each keypair signs the message
             mint_sig = mint_keypair.sign_message(message_bytes)
             creator_sig = creator_wallet.sign_message(message_bytes)
             
-            # Populate signatures into the transaction
+            # Create a new signed transaction with the signatures
             versioned_tx = VersionedTransaction.populate(versioned_tx.message, [mint_sig, creator_sig])
             
             print(f"[INFO] Submitting CREATE transaction via direct RPC...")
@@ -497,7 +497,7 @@ class PumpFunReal:
                             buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
                             
                             # Sign with solders API
-                            buy_message_bytes = bytes(buy_versioned_tx.message)
+                            buy_message_bytes = bytes(buy_versioned_tx.message.serialize())
                             buyer_sig = wallet.sign_message(buy_message_bytes)
                             buy_versioned_tx = VersionedTransaction.populate(buy_versioned_tx.message, [buyer_sig])
                             
