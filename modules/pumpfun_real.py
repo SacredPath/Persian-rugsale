@@ -423,25 +423,22 @@ class PumpFunReal:
             print(f"[DEBUG] Num readonly unsigned accounts: {versioned_tx.message.header.num_readonly_unsigned_accounts}")
             print(f"[DEBUG] First {versioned_tx.message.header.num_required_signatures} accounts are signers:")
             
-            # Sign with solders API
-            # Solana transactions require domain separation: sha256("solana-tx" || message_bytes)
-            import hashlib
+            # Manual signing for solders VersionedTransaction (MessageV0 uses bytes())
+            # CRITICAL: PumpPortal pre-builds TX with creator as BOTH payer AND mint authority
+            # mint_keypair is a NEW keypair (not yet the authority), so only creator signs
             message_bytes = bytes(versioned_tx.message)
-            
-            # Create the Solana transaction hash with domain separation
-            tx_hash = hashlib.sha256(b"solana-tx" + message_bytes).digest()
-            print(f"[DEBUG] Transaction hash: {tx_hash.hex()}")
-            
-            # Sign the transaction hash
-            creator_sig = creator_wallet.sign_message(tx_hash)
-            mint_sig = mint_keypair.sign_message(tx_hash)
+            creator_sig = creator_wallet.sign_message(message_bytes)  # Single sig from creator (authority for both)
             
             print(f"[DEBUG] Creator pubkey: {creator_wallet.pubkey()}")
             print(f"[DEBUG] Mint pubkey: {mint_keypair.pubkey()}")
-            print(f"[DEBUG] Trying signature order: [creator, mint]")
+            print(f"[DEBUG] Using DUPLICATE creator signature for both Account 0 (payer) and Account 1 (mint authority)")
             
-            # Populate transaction with signatures
-            versioned_tx = VersionedTransaction.populate(versioned_tx.message, [creator_sig, mint_sig])
+            # Populate transaction with DUPLICATE signature (same key signs both indices)
+            signatures = [
+                creator_sig,  # For Account 0: Creator (payer)
+                creator_sig   # For Account 1: Creator (mint authority, duplicated)
+            ]
+            versioned_tx = VersionedTransaction.populate(versioned_tx.message, signatures)
             
             # Verify the signatures
             print(f"[DEBUG] Transaction has {len(versioned_tx.signatures)} signatures")
@@ -533,11 +530,9 @@ class PumpFunReal:
                             buy_tx_bytes = base58.b58decode(buy_tx_base58)
                             buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
                             
-                            # Sign with solders API (Solana tx requires domain separation)
-                            import hashlib
+                            # Sign with solders (simpler for single signer)
                             buy_message_bytes = bytes(buy_versioned_tx.message)
-                            buy_tx_hash = hashlib.sha256(b"solana-tx" + buy_message_bytes).digest()
-                            buyer_sig = wallet.sign_message(buy_tx_hash)
+                            buyer_sig = wallet.sign_message(buy_message_bytes)
                             buy_versioned_tx = VersionedTransaction.populate(buy_versioned_tx.message, [buyer_sig])
                             
                             buy_send_result = await self.client.send_raw_transaction(
