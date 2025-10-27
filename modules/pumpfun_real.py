@@ -424,22 +424,12 @@ class PumpFunReal:
             print(f"[DEBUG] First {versioned_tx.message.header.num_required_signatures} accounts are signers:")
             
             # Manual signing for solders VersionedTransaction (MessageV0 uses bytes())
-            from nacl.signing import SigningKey
-            from solders.signature import Signature
-            
+            # Use solders' built-in Keypair.sign_message() which implements Solana's signing
             message_bytes = bytes(versioned_tx.message)
             
-            # Solana transaction signing: Raw Ed25519 over the serialized message bytes
-            creator_secret = bytes(creator_wallet.secret())[:32]
-            creator_signing_key = SigningKey(creator_secret)
-            creator_sig_bytes = creator_signing_key.sign(message_bytes).signature
-            creator_sig = Signature.from_bytes(creator_sig_bytes)
-            
-            # Sign with mint keypair as well (PumpPortal expects both signers)
-            mint_secret = bytes(mint_keypair.secret())[:32]
-            mint_signing_key = SigningKey(mint_secret)
-            mint_sig_bytes = mint_signing_key.sign(message_bytes).signature
-            mint_sig = Signature.from_bytes(mint_sig_bytes)
+            # Sign with both keypairs using solders' native signing
+            creator_sig = creator_wallet.sign_message(message_bytes)
+            mint_sig = mint_keypair.sign_message(message_bytes)
             
             print(f"[DEBUG] Creator pubkey: {creator_wallet.pubkey()}")
             print(f"[DEBUG] Mint pubkey: {mint_keypair.pubkey()}")
@@ -532,16 +522,9 @@ class PumpFunReal:
                             buy_tx_bytes = base58.b58decode(buy_tx_base58)
                             buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
                             
-                            # Sign with PyNaCl (raw Ed25519 over message bytes)
-                            from nacl.signing import SigningKey
-                            from solders.signature import Signature
-                            
+                            # Sign with solders' built-in sign_message (Solana's signing)
                             buy_message_bytes = bytes(buy_versioned_tx.message)
-                            
-                            buyer_secret = bytes(wallet.secret())[:32]
-                            buyer_signing_key = SigningKey(buyer_secret)
-                            buyer_sig_bytes = buyer_signing_key.sign(buy_message_bytes).signature
-                            buyer_sig = Signature.from_bytes(buyer_sig_bytes)
+                            buyer_sig = wallet.sign_message(buy_message_bytes)
                             buy_versioned_tx = VersionedTransaction.populate(buy_versioned_tx.message, [buyer_sig])
                             
                             buy_send_result = await self.client.send_raw_transaction(
