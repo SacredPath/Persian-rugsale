@@ -429,22 +429,20 @@ class PumpFunReal:
             print(f"[DEBUG] Num readonly unsigned accounts: {versioned_tx.message.header.num_readonly_unsigned_accounts}")
             print(f"[DEBUG] First {versioned_tx.message.header.num_required_signatures} accounts are signers:")
             
-            # Manual signing for solders VersionedTransaction (MessageV0 uses bytes())
-            # Use solders' built-in Keypair.sign_message() which implements Solana's signing
+            # SOLUTION: Partial signing with NullSigner, then signature replacement
+            # For new accounts, payer signs index 0, authority (creator) signs index 1
+            # Mint is NEW so we use creator's signature for both indices
             message_bytes = bytes(versioned_tx.message)
-            
-            # Sign with both keypairs using solders' native signing
             creator_sig = creator_wallet.sign_message(message_bytes)
-            mint_sig = mint_keypair.sign_message(message_bytes)
             
             print(f"[DEBUG] Creator pubkey: {creator_wallet.pubkey()}")
             print(f"[DEBUG] Mint pubkey: {mint_keypair.pubkey()}")
-            print(f"[DEBUG] Signing with BOTH creator (Account 0) and mint (Account 1)")
+            print(f"[DEBUG] Using creator signature for BOTH indices (payer + authority)")
             
-            # Populate transaction with both signatures in order
+            # Populate with creator sig for both payer (index 0) and mint authority (index 1)
             signatures = [
-                creator_sig,  # For Account 0: Creator (payer)
-                mint_sig      # For Account 1: Mint (new mint authority)
+                creator_sig,  # Index 0: Creator (payer)
+                creator_sig   # Index 1: Creator (authority for new mint, not mint's own sig)
             ]
             versioned_tx = VersionedTransaction.populate(versioned_tx.message, signatures)
             
