@@ -424,28 +424,31 @@ class PumpFunReal:
             print(f"[DEBUG] First {versioned_tx.message.header.num_required_signatures} accounts are signers:")
             
             # Manual signing for solders VersionedTransaction (MessageV0 uses bytes())
-            # CRITICAL: PumpPortal pre-builds TX with creator as BOTH payer AND mint authority
-            # mint_keypair is a NEW keypair (not yet the authority), so only creator signs
             from nacl.signing import SigningKey
             from solders.signature import Signature
             
             message_bytes = bytes(versioned_tx.message)
             
             # Solana transaction signing: Raw Ed25519 over the serialized message bytes
-            # NOTE: "solana-tx" prefix is for instructions, NOT transactions!
             creator_secret = bytes(creator_wallet.secret())[:32]
             creator_signing_key = SigningKey(creator_secret)
             creator_sig_bytes = creator_signing_key.sign(message_bytes).signature
             creator_sig = Signature.from_bytes(creator_sig_bytes)
             
+            # Sign with mint keypair as well (PumpPortal expects both signers)
+            mint_secret = bytes(mint_keypair.secret())[:32]
+            mint_signing_key = SigningKey(mint_secret)
+            mint_sig_bytes = mint_signing_key.sign(message_bytes).signature
+            mint_sig = Signature.from_bytes(mint_sig_bytes)
+            
             print(f"[DEBUG] Creator pubkey: {creator_wallet.pubkey()}")
             print(f"[DEBUG] Mint pubkey: {mint_keypair.pubkey()}")
-            print(f"[DEBUG] Using DUPLICATE creator signature for both Account 0 (payer) and Account 1 (mint authority)")
+            print(f"[DEBUG] Signing with BOTH creator (Account 0) and mint (Account 1)")
             
-            # Populate transaction with DUPLICATE signature (same key signs both indices)
+            # Populate transaction with both signatures in order
             signatures = [
                 creator_sig,  # For Account 0: Creator (payer)
-                creator_sig   # For Account 1: Creator (mint authority, duplicated)
+                mint_sig      # For Account 1: Mint (new mint authority)
             ]
             versioned_tx = VersionedTransaction.populate(versioned_tx.message, signatures)
             
