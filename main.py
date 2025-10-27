@@ -15,6 +15,9 @@ try:
     from modules.monitor import HypeMonitor
     from modules.rugger import RugExecutor
     from modules.collector import ProfitCollector
+    
+    # Keep-alive only needed for Replit - disabled for localhost
+    # from keep_alive import keep_alive
 except ImportError as e:
     print(f"\n[ERROR] Import Error: {e}")
     print("\n[INFO] Install dependencies:")
@@ -915,13 +918,14 @@ if __name__ == "__main__":
     
     print("Simple Rug Bot Starting...")
     
-    # Start keep-alive web server for 24/7 uptime
-    try:
-        from keep_alive import keep_alive
-        keep_alive()
-    except Exception as e:
-        print(f"[WARNING] Keep-alive server failed to start: {e}")
-        print("[INFO] Bot will still run but may stop on Replit free tier")
+    # Keep-alive web server (ONLY needed for Replit, not for localhost)
+    # Uncomment below if running on Replit:
+    # try:
+    #     from keep_alive import keep_alive
+    #     keep_alive()
+    # except Exception as e:
+    #     print(f"[WARNING] Keep-alive server failed to start: {e}")
+    #     print("[INFO] Bot will still run but may stop on Replit free tier")
     
     # Start bot with comprehensive error handling
     try:
