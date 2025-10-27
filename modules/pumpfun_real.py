@@ -426,19 +426,16 @@ class PumpFunReal:
             # Manual signing for solders VersionedTransaction (MessageV0 uses bytes())
             # CRITICAL: PumpPortal pre-builds TX with creator as BOTH payer AND mint authority
             # mint_keypair is a NEW keypair (not yet the authority), so only creator signs
-            import hashlib
             from nacl.signing import SigningKey
             from solders.signature import Signature
             
             message_bytes = bytes(versioned_tx.message)
             
-            # Solana transaction signing: Ed25519 over sha256("solana-tx" + message_bytes)
-            message_hash = hashlib.sha256(b"solana-tx" + message_bytes).digest()
-            print(f"[DEBUG] Domain-separated hash: {message_hash.hex()}")
-            
+            # Solana transaction signing: Raw Ed25519 over the serialized message bytes
+            # NOTE: "solana-tx" prefix is for instructions, NOT transactions!
             creator_secret = bytes(creator_wallet.secret())[:32]
             creator_signing_key = SigningKey(creator_secret)
-            creator_sig_bytes = creator_signing_key.sign(message_hash).signature
+            creator_sig_bytes = creator_signing_key.sign(message_bytes).signature
             creator_sig = Signature.from_bytes(creator_sig_bytes)
             
             print(f"[DEBUG] Creator pubkey: {creator_wallet.pubkey()}")
@@ -542,17 +539,15 @@ class PumpFunReal:
                             buy_tx_bytes = base58.b58decode(buy_tx_base58)
                             buy_versioned_tx = VersionedTransaction.from_bytes(buy_tx_bytes)
                             
-                            # Sign with PyNaCl (proper Ed25519 with domain separation)
-                            import hashlib
+                            # Sign with PyNaCl (raw Ed25519 over message bytes)
                             from nacl.signing import SigningKey
                             from solders.signature import Signature
                             
                             buy_message_bytes = bytes(buy_versioned_tx.message)
-                            buy_message_hash = hashlib.sha256(b"solana-tx" + buy_message_bytes).digest()
                             
                             buyer_secret = bytes(wallet.secret())[:32]
                             buyer_signing_key = SigningKey(buyer_secret)
-                            buyer_sig_bytes = buyer_signing_key.sign(buy_message_hash).signature
+                            buyer_sig_bytes = buyer_signing_key.sign(buy_message_bytes).signature
                             buyer_sig = Signature.from_bytes(buyer_sig_bytes)
                             buy_versioned_tx = VersionedTransaction.populate(buy_versioned_tx.message, [buyer_sig])
                             
